@@ -1,0 +1,76 @@
+Module: ft991utility.py
+
+Introduction
+------------
+The ft991 utility is an interactive tool for backing up and restoring both
+the memory settings and menu settings of the Yaesu FT991 transceiver.
+Individual memory locations store information about frequency, repeater
+offset, signaling, tags, modulation, and clarifier.  Menu settings store
+configuration information about current menu options and parameters.  The
+utility also has a pass through mode for sending CAT commands directly to
+the transceiver.  This feature is useful for future code development and
+debugging.
+
+The ft991.py module encapsulates the FT991 CAT commands and handles low
+level serial communication to and from the FT991 usb port.  CAT commands
+are encapsulated according to object oriented methodology, that is, 'set'
+to send parameters and settings to the FT991, and 'get' to receive status
+information back from the FT991. Additionally ft991.py contains helper
+functions for parsing data read from backup files. The 'set' functions
+also handle formatting of CAT commands and their associated parameters,
+while 'get' functions handle parsing of data returned from CAT commands
+that return status information.
+
+Notes
+-----
+1. The files ft991utility.py and ft991.py should be downloaded from the
+   github repository and placed in the same folder.
+2. To run the utility, open a terminal session in directory containing
+   the ft991utility.py and ft991.py files.  Then simply type the utility
+   file name after the command line prompt, e.g.,
+       ~$ ./ft991utility.py
+   If necessary, change the permissions on ft991utility.py to allow the file
+   to be run as an executable.  To change the permissions run the command
+       chmod +x ft991utility.py2.
+3. Windows users will need to have the python 2.7 framework installed.
+   Probably, the easiest way to get the framework is to install the
+   Windows Subsystem for Linux Ubuntu platform.  Note that the utility
+   has not been tested on Windows and the developer makes no guarentees.
+4. While it is possible to run the utility completely from the command
+   line using options, beginning users are encouraged to use the
+   interactive mode.  To use the interactive mode simply type the file
+   name of the utility with no command line arguments, e.g.,
+           ./ft991utility.py
+5. The utility saves memory settings in a comma-delimited file that
+   can be imported using a spreadsheet application for ease in viewing
+   and editing.  A LibreOffice Calc template 'ft991_memory_settings.ots'
+   has been provided to facilitate creating a spreadsheet to upload memory
+   settings to the FT991.
+6. The verbose mode, available both as a command line option and in
+   interactive mode, echos raw commands sent to the FT991, as well as
+   raw status returned by the FT991.  This feature is useful for development
+   and debugging purposes.
+7. If you already have repeater frequencies and such programmed
+   in memory, you should first run the 'bm' command in interactive mode
+   to back up your current memory settings.  Unless you change the default
+   file name, this file should appear in your current working directory as
+   'ft991mem.csv'.  Change this file name to something else such as
+   'ft991mem_todaysDate.csv' so that you can restore from this file at a
+   later date if necessary.
+8. By the same token you should immediately back up your menu settings using
+   the 'bu' command in interactive mode.  The default file name is
+   'ft991menu.cfg'.  Likewise change this file name to something else.
+9. The example file 'example.csv' shows how a memory settings file should
+   appear.  To load these settings into your FT991, run the 'rm' command in
+   interactive mode.  When prompted to enter a file name type 'example.csv'. 
+   For example,
+       Enter file name or <CR> for default: example.csv
+10. Backup and restore of split frequency memory settings is not yet implemented.
+    The 'Tx Frequency' and 'Offset' columns in the memory settings file should
+    be left blank.
+11. Please do not edit the menu settings file unless you absolutely know
+    what you are doing.  There should rarely be a need to edit this file.
+    Menu changes should be made on the FT991, itself, and then backed up.
+
+Email bug reports and comments to: fractal@intravisions.com
+

@@ -422,7 +422,7 @@ def printMenuSplash():
     """
     splash = \
 """
-Enter one of the following commands:
+Enter a command from the list below:
 m - show this menu
 bm - backup memory to file
 rm - restore memory from file
