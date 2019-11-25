@@ -21,20 +21,19 @@ also handle formatting of CAT commands and their associated parameters,
 while 'get' functions handle parsing of data returned from CAT commands
 that return status information.
 
+Email bug reports and comments to: fractal@intravisions.com
+
 Notes
 -----
 1. The files ft991utility.py and ft991.py should be downloaded from the
-   github repository and placed in the same folder.  At the root level
-   of the fractalxoas/ham repository, click on 'Clone or download'.
-   Experienced github users may choose to clone the repository, otherwise
-   select 'Download ZIP'.
+   github repository and placed in the same folder.
 2. To run the utility, open a terminal session in directory containing
    the ft991utility.py and ft991.py files.  Then simply type the utility
    file name after the command line prompt, e.g.,
        ~$ ./ft991utility.py
    If necessary, change the permissions on ft991utility.py to allow the file
    to be run as an executable.  To change the permissions run the command
-       chmod +x ft991utility.py2.
+       chmod +x ft991utility.py
 3. Windows users will need to have the python 2.7 framework installed.
    Probably, the easiest way to get the framework is to install the
    Windows Subsystem for Linux Ubuntu platform.  Note that the utility
@@ -45,7 +44,7 @@ Notes
    name of the utility with no command line arguments, e.g.,
            ./ft991utility.py
 5. The utility saves memory settings in a comma-delimited file that
-   can be imported using a spreadsheet application for ease in viewing
+   can be imported into a spreadsheet application for ease in viewing
    and editing.  A LibreOffice Calc template 'ft991_memory_settings.ots'
    has been provided to facilitate creating a spreadsheet to upload memory
    settings to the FT991.
@@ -58,13 +57,13 @@ Notes
    to back up your current memory settings.  Unless you change the default
    file name, this file should appear in your current working directory as
    'ft991mem.csv'.  Change this file name to something else such as
-   'ft991mem_todaysDate.csv' so that you can restore from this file at a
+   'ft991mem_todaysDate.csv so that you can restore from this file at a
    later date if necessary.
 8. By the same token you should immediately back up your menu settings using
    the 'bu' command in interactive mode.  The default file name is
    'ft991menu.cfg'.  Likewise change this file name to something else.
 9. The example file 'example.csv' shows how a memory settings file should
-   appear.  To load these settings into your FT991, run the 'rm' command in
+   appear.  To load these settings in your FT991, run the 'rm' command in
    interactive mode.  When prompted to enter a file name type 'example.csv'. 
    For example,
        Enter file name or <CR> for default: example.csv
@@ -75,5 +74,4 @@ Notes
     what you are doing.  There should rarely be a need to edit this file.
     Menu changes should be made on the FT991, itself, and then backed up.
 
-Email bug reports and comments to: fractal@intravisions.com
 

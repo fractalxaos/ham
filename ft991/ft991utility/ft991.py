@@ -117,67 +117,26 @@ dDcs = { '23':'000', '25':'001', '26':'002', '31':'003', '32':'004',
 dRxClar = { 'OFF':'0', 'ON':'1' }
 dTxClar = { 'OFF':'0', 'ON':'1' }
 
-# Define 'set' functions to encapsulate the various FT991 CAT commands.
+# Define 'get' methods to encapsulate FT991 commands that return status info.
 
-def setMemory(dMem):
+def getMemory(memloc):
     """
-    Description: Returns a formatted MT command to the calling function.
-    Parameters: dMem - a dictionary objected with the following keys
-                       defined:
-
-                       memloc - the memory location to be written
-                       rxfreq - the receive frequency of VFO-A in MHz
-                       mode - the modulation mode
-                       encode - the tone or DCS encoding mode
-                       shift - the direction of the repeater shift
-                       tag - a label for the memory location
-
-    Returns: a string containing the formatted command
-    """
-    sCmd = 'MC%0.3d;' % int(dMem['memloc'])
-    sResult = sendCommand(sCmd)
-
-    # While the 'MW' and 'MT' commands can be used to turn the Rx
-    # and Tx clarifiers on, the clarifier states can only be turned
-    # off by sending the 'RT0' and 'XT0' commands.  This situation is
-    # probably due to a potential bug in the CAT interface.
-    sResult = sendCommand('RC;RT0;XT0;')
-
-    sCmd = 'MT%0.3d' % int(dMem['memloc'])
-    sCmd += '%d' % int(float(dMem['rxfreq']) * 1E6)
-    sCmd += '%+0.4d' % int(dMem['clarfreq'])
-    sCmd += dRxClar[dMem['rxclar']]
-    sCmd += dTxClar[dMem['txclar']]
-    sCmd += dMode[dMem['mode']]
-    sCmd += '0'
-    sCmd += dEncode[dMem['encode']]
-    sCmd += '00'
-    sCmd += dShift[dMem['shift']]
-    sCmd += '0'
-    sCmd += '%-12s' % dMem['tag']
-    sCmd += ';'
-    sResult = sendCommand(sCmd)
-    return sResult
-## end def
-
-def getMemory(memLoc):
-    """
-    Description: 
-    Parameters: 
-    Returns: 
+    Description: Get memory settings of a specific memory location.
+    Parameters: memloc - an integer specifying memory location 
+    Returns: a dictionary object containing the memory ettings
     """
     dMem = {}
 
     # Set memory location pointer in FT991.  This is done
     # by sending the memory location select (MC) command.
-    sCmd = 'MC%0.3d;' % (memLoc)
+    sCmd = 'MC%0.3d;' % (memloc)
     sResult = sendCommand(sCmd)
     # Skip blank memory locations, which return '?;'.
     if sResult == '?;':
         return None
 
     # Send the get memory settings string to the FT991.
-    sCmd = 'MT%0.3d;' % (memLoc)
+    sCmd = 'MT%0.3d;' % (memloc)
     sResult = sendCommand(sCmd)
 
     # Parse memory settings string returned by the FT991
@@ -207,9 +166,9 @@ def getMemory(memLoc):
 
 def getCTCSS():
     """
-    Description: 
-    Parameters: 
-    Returns: 
+    Description: Get the CTCSS tone setting for the current memory location.
+    Parameters: none
+    Returns: string containing the CTCSS tone
     """
     # Get result CTCSS tone
     sResult = sendCommand('CN00;')
@@ -219,9 +178,9 @@ def getCTCSS():
 
 def getDCS():
     """
-    Description: 
-    Parameters: 
-    Returns: 
+    Description: Get the DCS code setting for the current memory location.
+    Parameters: none
+    Returns: string containing the DCS code
     """
     # Get result of CN01 command
     sResult = sendCommand('CN01;')
@@ -229,40 +188,125 @@ def getDCS():
     return dDcs.keys()[dDcs.values().index(dcs)]
 ## end def
 
+# Define 'set' functions to encapsulate the various FT991 CAT commands.
+
+def setMemory(dMem):
+    """
+    Description: Sends a formatted MT command.
+    Parameters: dMem - a dictionary objected with the following keys
+                       defined:
+
+                       memloc - the memory location to be written
+                       rxfreq - receive frequency of VFO-A in MHz
+                       clarfreq - clarifier frequency and direction
+                       rxclar - receive clarifier state
+                       txclar - transmit clarifier state
+                       mode - the modulation mode
+                       encode - the tone or DCS encoding mode
+                       shift - the direction of the repeater shift
+                       tag - a label for the memory location
+
+    Returns: a string containing the formatted command
+    """
+    # Format the set memory location (MC) command.
+    iMemloc = int(dMem['memloc'])
+    # Validate memory location data and send the command.
+    if iMemloc < 1 or iMemloc > 118:
+        raise Exception('Memory location must be between 1 and ' \
+                        '118, inclusive.')
+    sCmd = 'MC%0.3d;' % iMemloc
+    sResult = sendCommand(sCmd)
+
+    # While the 'MW' and 'MT' commands can be used to turn the Rx
+    # and Tx clarifiers on, the clarifier states can only be turned
+    # off by sending the 'RT0' and 'XT0' commands.  This situation is
+    # probably due to a bug in the CAT interface.
+    sResult = sendCommand('RC;RT0;XT0;')
+
+    # Format the set memory with tag command (MT).
+    sCmd = 'MT%0.3d' % iMemloc
+
+    # Validate and append the vfo-a frequency data.
+    iRxfreq = int(float(dMem['rxfreq']) * 1E6) # vfo-a frequency in Hz
+    if iRxfreq < 0.030E6 or iRxfreq > 450.0E6:
+        raise Exception('VFO-A frequency must be between 30 kHz and ' \
+                        '450 MHz, inclusive.')
+    sCmd += '%0.9d' % iRxfreq
+
+    # Validate and append the clarifier data.
+    iClarfreq = int(dMem['clarfreq'])
+    if abs(iClarfreq) > 9999:
+        raise Exception('Clarifer frequency must be between -9999 Hz ' \
+                        'and +9999 Hz, inclusive.')
+    sCmd += '%+0.4d' % iClarfreq
+
+    # The following commands will automatically raise an exception if
+    # incorrect data is supplied.  The exception will be a dictionary
+    # object "key not found" error.
+    sCmd += dRxClar[dMem['rxclar']]
+    sCmd += dTxClar[dMem['txclar']]
+    sCmd += dMode[dMem['mode']]
+    sCmd += '0'
+    sCmd += dEncode[dMem['encode']]
+    sCmd += '00'
+    sCmd += dShift[dMem['shift']]
+    sCmd += '0'
+    sTag = dMem['tag']
+
+    # Validate and append the memory tag data.
+    if len(sTag) > 12:
+        raise Exception('Memory tags must be twelve characters or less.')
+    sCmd += '%-12s' % sTag
+    sCmd += ';' # Terminate the completed command.
+
+    # Send the completed command.
+    sResult = sendCommand(sCmd)
+    return sResult
+## end def
+
 def setCTCSS(tone):
     """
-    Description:  returns a formatted CN command that sets the desired
+    Description:  Sends a formatted CN command that sets the desired
                   CTCSS tone.
     Parameters:   tone - a string containing the CTCSS tone in Hz, e.g.,
                          '100 Hz'
     Returns: a string containing the formatted command
     """
+    # An exception will automatically be raised if incorrect data is
+    # supplied - most likely a "key not found" error.
     sCmd = 'CN00%s;' % dTones[tone]
     return sendCommand(sCmd)
 ## end def
 
 def setDCS(code):
     """
-    Description:  returns a formatted CN command that sets the desired
+    Description:  Sends a formatted CN command that sets the desired
                   DCS code.
-    Parameters:   code - a string containing the DCS code, e.g., '23'
+    Parameters: code - a string containing the DCS code, e.g., '23'
     Returns: a string containing the formatted command
     """
+    # An exception will automatically be raised if incorrect data is
+    # supplied - most likely a "key not found" error.
     sCmd = 'CN01%s;' % dDcs[code]
     return sendCommand(sCmd)
 ## end def
 
 def setPower(power):
     """
-    Description:  returns a formatted PC command that sets the desired
+    Description:  Sends a PC command that sets the desired
                   RF transmit power level.
     Parameters:   power - Watts, an integer between 5 and 100
     Returns: a string containing the formatted command
     """
-    sCmd = 'PC'
-    sCmd += '%03.d;' % power 
+    power = int(power)
+    # Validate power data and format command.
+    if power < 5 or power > 100:
+        raise Exception('Power must be between 0 and 100 watts, inclusive.')
+    sCmd += 'PC%03.d;' % power
     return sendCommand(sCmd)
 ## end def
+
+# Helper functions to assist in various tasks.
 
 def parseCsvData(sline):
     """
@@ -286,50 +330,11 @@ def parseCsvData(sline):
     dChan['tag'] = lchan[6]
     dChan['encode'] = lchan[7]
     dChan['tone'] = lchan[8]
-    dChan['dcs'] = str(int(lchan[9]))
+    dChan['dcs'] = lchan[9]
     dChan['clarfreq'] = lchan[10]
     dChan['rxclar'] = lchan[11]
     dChan['txclar'] = lchan[12]
     return dChan # return the dictionary object
-## end def
-
-# Define serial communications functions.
-
-def begin(baud=9600):
-    """
-    Description: Initiates a serial connection the the FT991. Should
-                 always be called before sending commands to or
-                 receiving data from the FT991.  Only needs to be called
-                 once.
-    Parameters: none
-    Returns: a pointer to the FT991 serial connection
-    """
-    global ptrDevice
-
-    # Determine OS type and set device port accordingly.
-    OS_type = sys.platform
-    if 'WIN' in OS_type.upper():
-        port = 'COM5'
-    else:
-        port = '/dev/ttyUSB0'
-
-    # In debug mode do not actually send commands to the FT991.
-    if debug:
-        return
-    # Create a FT991 object for serial communication
-    try:
-        ptrDevice = serial.Serial(port, baud,      
-                                  timeout=_INTERFACE_TIMEOUT)
-    except Exception, error:
-        if str(error).find('could not open port') > -1:
-            print 'Please be sure the usb cable is properly connected to\n' \
-                  'your FT991 and to your computer, and that the FT991 is\n' \
-                  'turned ON.  Then restart this program.'
-        else:
-            print 'Serial port error: %s\n' % error
-        exit(1)         
-    time.sleep(.1) # give the connection a moment to settle
-    return ptrDevice
 ## end def
 
 def sendCommand(sCmd):
@@ -359,6 +364,46 @@ def sendCommand(sCmd):
     if verbose:
         print sResult
     return sResult
+## end def
+
+# Low level serial communications functions.
+
+def begin(baud=9600):
+    """
+    Description: Initiates a serial connection the the FT991. Should
+                 always be called before sending commands to or
+                 receiving data from the FT991.  Only needs to be called
+                 once.
+    Parameters: none
+    Returns: a pointer to the FT991 serial connection
+    """
+    global ptrDevice
+
+    # Determine OS type and set device port accordingly.
+    OS_type = sys.platform
+    if 'WIN' in OS_type.upper():
+        port = 'COM5'
+    else:
+        port = '/dev/ttyUSB0'
+
+    # In debug mode do not actually send commands to the FT991.
+    if debug:
+        return
+
+    # Create a FT991 object for serial communication
+    try:
+        ptrDevice = serial.Serial(port, baud,      
+                                  timeout=_INTERFACE_TIMEOUT)
+    except Exception, error:
+        if str(error).find('could not open port') > -1:
+            print 'Please be sure the usb cable is properly connected to\n' \
+                  'your FT991 and to your computer, and that the FT991 is\n' \
+                  'turned ON.  Then restart this program.'
+        else:
+            print 'Serial port error: %s\n' % error
+        exit(1)         
+    time.sleep(.1) # give the connection a moment to settle
+    return ptrDevice
 ## end def
 
 def receiveSerial(termchar=';'):
@@ -413,6 +458,10 @@ def sendSerial(command):
     ptrDevice.flushOutput() # Flush serial buffer to prevent overflows
 ## end def
 
+# Main routine only gets called when this module is run as a program rather
+# than imported into another python module.  Code testing the functions in
+# this module should be placed here.
+
 def main():
     """
     Description: Place code for testing this module here.
@@ -425,17 +474,19 @@ def main():
     verbose = True
     debug = False
 
+    # Instantiate serial connection to FT991
     begin()
-    sendCommand('IF;')
-    sendCommand('MC001;')
-    sendCommand('ZZZ;')
-
+    # Commands that send a setting
     dMem = {'rxfreq': '146.52', 'shift': 'OFF', 'encode': 'OFF', \
         'txclar': 'OFF', 'tag': 'KA7JLO', 'mode': 'FM', 'rxclar': 'OFF', \
         'memloc': '99', 'clarfreq': '0'}
     setMemory(dMem)
-    print getMemory(99)
-   
+    sendCommand('MC002;')
+    # Commands that return data
+    getMemory(99)
+    sendCommand('IF;')
+    # Invalid command handling
+    sendCommand('ZZZ;')
 ## end def
 
 if __name__ == '__main__':

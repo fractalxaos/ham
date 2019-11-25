@@ -241,50 +241,11 @@ def getFileName(defaultFile):
     if commandLineOption != '':
         return defaultFile
     # Otherwise query the user for a file name
-    fileName = raw_input("Enter file name or <CR> for default: ")
+    fileName = raw_input('Enter file name or <CR> for default: ')
     if fileName == '':
         return defaultFile
     else:
         return fileName
-## end def
-
-def readMenuSettings():
-    """
-    Description: Reads all menu settings from the FT991.
-    Parameters: none
-    Returns: a list object containing all the menu settings
-    """
-    lMenuSettings = []
-    # Iterate through all menu items, getting each setting and storing
-    # the setting in a file.
-    for inx in range(1, _MAX_NUMBER_OF_MENU_ITEMS):
-        # Format the read menu item CAT command.
-        sCommand = 'EX%0.3d;' % inx
-        # Send the command to the FT991.
-        sResult = ft991.sendCommand(sCommand)
-        # Add the menu setting to a list object.
-        lMenuSettings.append(sResult)
-    return lMenuSettings
-## end def
-
-def writeMenuSettings(lMenuSettings):
-    """
-    Description: Writes supplied menu settings to the FT991.
-    Parameters: lMenuSettings - a list object containing menu settings
-    Returns: nothing
-    """
-    for item in lMenuSettings:
-
-        # Do not write read-only menu settings as this results
-        # in the FT-991 returning an error.  The only read-only
-        # setting is the "Radio ID" setting.
-        if item.find('EX087') > -1:
-            continue;
-        # Send the pre-formatted menu setting to the FT991.
-        sResult = ft991.sendCommand(item)
-        if sResult.find('?;') > -1:
-            print 'error restoring menu setting: %s' % item
-            exit(1)
 ## end def
 
 def readMemorySettings():
@@ -301,7 +262,7 @@ def readMemorySettings():
              contained in the list.
     """
     # Define the column headers as the first item in the list.
-    lMemorySettings = [ 'Memory Ch,Rx Frequency,Tx Frequency,Offset,' \
+    lSettings = [ 'Memory Ch,Rx Frequency,Tx Frequency,Offset,' \
                         'Repeater Shift,Mode,Tag,Encoding,Tone,DCS,' \
                         'Clarifier, RxClar, TxClar' ]
 
@@ -327,38 +288,84 @@ def readMemorySettings():
                  tone, dcs, dMem['clarfreq'], dMem['rxclar'], \
                  dMem['txclar'] )
         # Add the comma-delimited string to the list object.
-        lMemorySettings.append(sCsvFormat)
+        lSettings.append(sCsvFormat)
         if ft991.verbose:
             print
-    return lMemorySettings
+    return lSettings
 # end def
 
-def writeMemorySettings(lMemorySettings):
+def writeMemorySettings(lSettings):
     """
     Description: Writes the supplied memory settings to the FT991.
-    Parameters: lMemorySettings - a list object containing the memory
+    Parameters: lSettings - a list object containing the memory
                                   settings in comma delimited format
     Returns: nothing
     """
-    for item in lMemorySettings:
+    for item in lSettings:
         # Parse the comma-delimited line and store in a dictionary object.
         dItem = ft991.parseCsvData(item)
         # The first item in the memory settings list are the column headers;
         # so ignore this item.  (parseData returns None for this item.)
         if dItem == None:
             continue
-        # Set memory channel vfo, mode, and other data.
         sResult = ''
-        sResult += ft991.setMemory(dItem)
-        # Set CTCSS tone for memory channel.
-        sResult += ft991.setCTCSS(dItem['tone'])
-        # Set DCS code for memory channel. 
-        sResult += ft991.setDCS(dItem['dcs'])
+        try:
+            # Set memory channel vfo, mode, and other data.
+            sResult += ft991.setMemory(dItem)
+            # Set CTCSS tone for memory channel.
+            sResult += ft991.setCTCSS(dItem['tone'])
+            # Set DCS code for memory channel. 
+            sResult += ft991.setDCS(dItem['dcs'])
+        except Exception, e:
+            print 'Backup settings file corrupted or incorrectly formatted.\n' \
+                  'Please make sure all values are correctly entered.'
+            print e
+            exit(1)
+
         # Process any errors returned by the CAT interface.
         if sResult.find('?;') > -1:
-            print 'error restoring memory setting: %s' % sResult
+            print 'Error restoring memory setting: %s' % sResult
         if ft991.verbose:
             print
+## end def
+
+def readMenuSettings():
+    """
+    Description: Reads all menu settings from the FT991.
+    Parameters: none
+    Returns: a list object containing all the menu settings
+    """
+    lSettings = []
+    # Iterate through all menu items, getting each setting and storing
+    # the setting in a file.
+    for inx in range(1, _MAX_NUMBER_OF_MENU_ITEMS):
+        # Format the read menu item CAT command.
+        sCommand = 'EX%0.3d;' % inx
+        # Send the command to the FT991.
+        sResult = ft991.sendCommand(sCommand)
+        # Add the menu setting to a list object.
+        lSettings.append(sResult)
+    return lSettings
+## end def
+
+def writeMenuSettings(lSettings):
+    """
+    Description: Writes supplied menu settings to the FT991.
+    Parameters: lSettings - a list object containing menu settings
+    Returns: nothing
+    """
+    for item in lSettings:
+
+        # Do not write read-only menu settings as this results
+        # in the FT-991 returning an error.  The only read-only
+        # setting is the "Radio ID" setting.
+        if item.find('EX087') > -1:
+            continue;
+        # Send the pre-formatted menu setting to the FT991.
+        sResult = ft991.sendCommand(item)
+        if sResult.find('?;') > -1:
+            print 'error restoring menu setting: %s' % item
+            exit(1)
 ## end def
 
 def writeToFile(lSettings, fileName):
@@ -398,8 +405,8 @@ def setIOFile(option, commandLineFile):
                  well as the command executed by doUserCommand above. 
     Parameters: option - the command supplied by the command line
                          argument interpreter getCLarguments.
-                commandLineFile - the name of the file supplied by the
-                          -f command line argument (if supplied). 
+                commandLineFile - the name of the file supplied by the -f
+                         command line argument (if supplied). 
     Returns: nothing
     """
     global menuBackupFile, memoryBackupFile, commandLineOption
@@ -436,7 +443,7 @@ x - exit this program
 ## end def
 
 def getCLarguments():
-    """ Description: gets command line arguments and configures this program
+    """ Description: Gets command line arguments and configures this program
                      to run accordingly.  See the variable 'usage', below,
                      for possible arguments that may be used on the command
                      line.
