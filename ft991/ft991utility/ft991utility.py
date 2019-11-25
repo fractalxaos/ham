@@ -422,13 +422,13 @@ def printMenuSplash():
     """
     splash = \
 """
-Enter menu item number.
+Enter one of the following commands:
 m - show this menu
 bm - backup memory to file
 rm - restore memory from file
 bu - backup menu to file
 ru - restore menu from file
-p - enter passthrough mode
+p - enter pass through mode
 v - toggle verbose mode
 x - exit this program
 """
