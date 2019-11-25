@@ -24,7 +24,10 @@ that return status information.
 Notes
 -----
 1. The files ft991utility.py and ft991.py should be downloaded from the
-   github repository and placed in the same folder.
+   github repository and placed in the same folder.  At the root level
+   of the fractalxoas/ham repository, click on 'Clone or download'.
+   Experienced github users may choose to clone the repository, otherwise
+   select 'Download ZIP'.
 2. To run the utility, open a terminal session in directory containing
    the ft991utility.py and ft991.py files.  Then simply type the utility
    file name after the command line prompt, e.g.,
