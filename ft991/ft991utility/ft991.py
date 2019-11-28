@@ -117,7 +117,9 @@ dDcs = { '23':'000', '25':'001', '26':'002', '31':'003', '32':'004',
 dRxClar = { 'OFF':'0', 'ON':'1' }
 dTxClar = { 'OFF':'0', 'ON':'1' }
 
-# Define 'get' methods to encapsulate FT991 commands that return status info.
+#############################################################################
+# Define 'get' methods to encapsulate FT991 commands returning status info. #
+#############################################################################
 
 def getMemory(memloc):
     """
@@ -127,17 +129,11 @@ def getMemory(memloc):
     """
     dMem = {}
 
-    # Set memory location pointer in FT991.  This is done
-    # by sending the memory location select (MC) command.
-    sCmd = 'MC%0.3d;' % (memloc)
-    sResult = sendCommand(sCmd)
-    # Skip blank memory locations, which return '?;'.
-    if sResult == '?;':
-        return None
-
     # Send the get memory settings string to the FT991.
     sCmd = 'MT%0.3d;' % (memloc)
     sResult = sendCommand(sCmd)
+    if sResult == '?;':
+        return None
 
     # Parse memory settings string returned by the FT991
     memloc = sResult[2:5]
@@ -188,7 +184,37 @@ def getDCS():
     return dDcs.keys()[dDcs.values().index(dcs)]
 ## end def
 
-# Define 'set' functions to encapsulate the various FT991 CAT commands.
+def getRxClarifier():
+    """
+    Description:  Gets the state of the Rx clarifier.
+    Parameters: none
+    Returns: string containing the state of the clarifier
+    """
+    # An exception will automatically be raised if incorrect data is
+    # supplied - most likely a "key not found" error.
+    sCmd = 'RT;'
+    sResult = sendCommand(sCmd)
+    state = sResult[2]
+    return dRxClar.keys()[dRxClar.values().index(state)]
+## end def
+
+def getTxClarifier():
+    """
+    Description:  Gets the state of the Tx clarifier.
+    Parameters: none
+    Returns: string containing the state of the clarifier
+    """
+    # An exception will automatically be raised if incorrect data is
+    # supplied - most likely a "key not found" error.
+    sCmd = 'XT;'
+    sResult = sendCommand(sCmd)
+    state = sResult[2]
+    return dTxClar.keys()[dTxClar.values().index(state)]
+## end def
+
+#########################################################################
+# Define 'set' functions to encapsulate the various FT991 CAT commands. #
+#########################################################################
 
 def setMemory(dMem):
     """
@@ -206,25 +232,17 @@ def setMemory(dMem):
                        shift - the direction of the repeater shift
                        tag - a label for the memory location
 
-    Returns: a string containing the formatted command
+    Returns: nothing
     """
-    # Format the set memory location (MC) command.
-    iMemloc = int(dMem['memloc'])
-    # Validate memory location data and send the command.
-    if iMemloc < 1 or iMemloc > 118:
+    # Format the set memory with tag command (MT).
+    sCmd = 'MT'
+
+    # Validate and append memory location data.
+    iLocation = int(dMem['memloc'])
+    if iLocation < 1 or iLocation > 118:
         raise Exception('Memory location must be between 1 and ' \
                         '118, inclusive.')
-    sCmd = 'MC%0.3d;' % iMemloc
-    sResult = sendCommand(sCmd)
-
-    # While the 'MW' and 'MT' commands can be used to turn the Rx
-    # and Tx clarifiers on, the clarifier states can only be turned
-    # off by sending the 'RT0' and 'XT0' commands.  This situation is
-    # probably due to a bug in the CAT interface.
-    sResult = sendCommand('RC;RT0;XT0;')
-
-    # Format the set memory with tag command (MT).
-    sCmd = 'MT%0.3d' % iMemloc
+    sCmd += '%0.3d' % iLocation
 
     # Validate and append the vfo-a frequency data.
     iRxfreq = int(float(dMem['rxfreq']) * 1E6) # vfo-a frequency in Hz
@@ -261,7 +279,8 @@ def setMemory(dMem):
 
     # Send the completed command.
     sResult = sendCommand(sCmd)
-    return sResult
+    if sResult == '?;':
+        raise Exception('setMemory error')
 ## end def
 
 def setCTCSS(tone):
@@ -270,12 +289,15 @@ def setCTCSS(tone):
                   CTCSS tone.
     Parameters:   tone - a string containing the CTCSS tone in Hz, e.g.,
                          '100 Hz'
-    Returns: a string containing the formatted command
+    Returns: nothing
     """
     # An exception will automatically be raised if incorrect data is
     # supplied - most likely a "key not found" error.
     sCmd = 'CN00%s;' % dTones[tone]
-    return sendCommand(sCmd)
+    # Send the completed command.
+    sResult = sendCommand(sCmd)
+    if sResult == '?;':
+        raise Exception('setCTCSS error')
 ## end def
 
 def setDCS(code):
@@ -283,12 +305,15 @@ def setDCS(code):
     Description:  Sends a formatted CN command that sets the desired
                   DCS code.
     Parameters: code - a string containing the DCS code, e.g., '23'
-    Returns: a string containing the formatted command
+    Returns: nothing
     """
     # An exception will automatically be raised if incorrect data is
     # supplied - most likely a "key not found" error.
     sCmd = 'CN01%s;' % dDcs[code]
-    return sendCommand(sCmd)
+    # Send the completed command.
+    sResult = sendCommand(sCmd)
+    if sResult == '?;':
+        raise Exception('setDCS error')
 ## end def
 
 def setPower(power):
@@ -296,17 +321,73 @@ def setPower(power):
     Description:  Sends a PC command that sets the desired
                   RF transmit power level.
     Parameters:   power - Watts, an integer between 5 and 100
-    Returns: a string containing the formatted command
+    Returns: nothing
     """
     power = int(power)
     # Validate power data and format command.
     if power < 5 or power > 100:
         raise Exception('Power must be between 0 and 100 watts, inclusive.')
     sCmd += 'PC%03.d;' % power
-    return sendCommand(sCmd)
+    # Send the completed command.
+    sResult = sendCommand(sCmd)
+    if sResult == '?;':
+        raise Exception('setPower error')
+
 ## end def
 
-# Helper functions to assist in various tasks.
+def setRxClarifier(state='OFF'):
+    """
+    Description:  Sends a formatted RT command that turns the Rx clarifier
+                  on or off.
+    Parameters: state - string 'OFF' or 'ON'
+    Returns: nothing
+    """
+    # An exception will automatically be raised if incorrect data is
+    # supplied - most likely a "key not found" error.
+    sCmd = 'RT%s;' % dRxClar[state]
+    # Send the completed command.
+    sResult = sendCommand(sCmd)
+    if sResult == '?;':
+        raise Exception('setRxClarifier error')
+## end def
+
+def setTxClarifier(state='OFF'):
+    """
+    Description:  Sends a formatted XT command that turns the Rx clarifier
+                  on or off.
+    Parameters: state - string 'OFF' or 'ON'
+    Returns: nothing
+    """
+    # An exception will automatically be raised if incorrect data is
+    # supplied - most likely a "key not found" error.
+    sCmd = 'XT%s;' % dTxClar[state]
+    # Send the completed command.
+    sResult = sendCommand(sCmd)
+    if sResult == '?;':
+        raise Exception('setTxClarifier error')
+## end def
+
+def setMemoryLocation(iLocation):
+    """
+    Description:  Sends a formatted MC command that sets the current
+                  memory location.
+    Parameters: location - integer specifying memory location
+    Returns: nothing
+    """
+    # Validate memory location data and send the command.
+    if iLocation < 1 or iLocation > 118:
+        raise Exception('Memory location must be an integer between 1 and ' \
+                        '118, inclusive.')
+    sCmd = 'MC%0.3d;' % iLocation
+    # Send the completed command.
+    sResult = sendCommand(sCmd)
+    if sResult == '?;':
+        raise Exception('setMemoryLocation error')
+## end def
+
+############################################################################
+# Helper functions to assist in various tasks.                             #
+############################################################################
 
 def parseCsvData(sline):
     """
@@ -476,14 +557,41 @@ def main():
 
     # Instantiate serial connection to FT991
     begin()
-    # Commands that send a setting
-    dMem = {'rxfreq': '146.52', 'shift': 'OFF', 'encode': 'OFF', \
-        'txclar': 'OFF', 'tag': 'KA7JLO', 'mode': 'FM', 'rxclar': 'OFF', \
-        'memloc': '99', 'clarfreq': '0'}
+    # Set and receive a memory channel
+    dMem = {'memloc': '98', 'rxfreq': '146.52', 'shift': 'OFF', \
+            'mode': 'FM', 'encode': 'TONE ENC', 'tag': 'KA7JLO', \
+            'clarfreq': '1234', 'rxclar': 'ON', 'txclar': 'ON' \
+           }
     setMemory(dMem)
-    sendCommand('MC002;')
-    # Commands that return data
+    setMemoryLocation(int(dMem['memloc']))
+    setRxClarifier(dMem['rxclar'])
+    setTxClarifier(dMem['txclar'])
+    setCTCSS('127.3 Hz')
+    setDCS('115')
+    print
+    getMemory(98)
+    print
+    # Set and receive a memory channel
+    dMem = {'memloc': '99', 'rxfreq': '146.52', 'shift': 'OFF', \
+            'mode': 'FM', 'encode': 'OFF', 'tag': 'KA7JLO', \
+            'clarfreq': '0', 'rxclar': 'OFF', 'txclar': 'OFF' \
+           }
+    setMemory(dMem)
+    setMemoryLocation(int(dMem['memloc']))
+    setRxClarifier(dMem['rxclar'])
+    setTxClarifier(dMem['txclar'])
+    setCTCSS('141.3 Hz')
+    setDCS('445')
+    print
     getMemory(99)
+    print
+
+    # Test set commands
+    #setMemoryLocation(2)
+    # Test get commands
+    #   commands...
+    # Test CAT commands via direct pass-through
+    # Commands that return data
     sendCommand('IF;')
     # Invalid command handling
     sendCommand('ZZZ;')

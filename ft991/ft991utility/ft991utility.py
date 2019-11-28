@@ -266,16 +266,19 @@ def readMemorySettings():
                         'Repeater Shift,Mode,Tag,Encoding,Tone,DCS,' \
                         'Clarifier, RxClar, TxClar' ]
 
-    for memoryLocation in range(1, _MAX_NUMBER_OF_MEMORY_ITEMS):
+    for iLocation in range(1, _MAX_NUMBER_OF_MEMORY_ITEMS):
+
         # For each memory location get the memory contents.  Note that
         # several CAT commands are required to get the entire contents
         # of a memory location.  Specifically, additional commands are
         # required to get DCS code and CTCSS tone.
-        dMem = ft991.getMemory(memoryLocation)
+        dMem = ft991.getMemory(iLocation)
         # If a memory location is empty (has not been programmed or has
         # been erased), do not created a list entry for that location.
         if dMem == None:
             continue
+        # Set current memory location to the channel being set.
+        sResult = ft991.setMemoryLocation(iLocation)
         # Get DCS and CTCSS.
         tone = ft991.getCTCSS()
         dcs = ft991.getDCS()
@@ -289,8 +292,6 @@ def readMemorySettings():
                  dMem['txclar'] )
         # Add the comma-delimited string to the list object.
         lSettings.append(sCsvFormat)
-        if ft991.verbose:
-            print
     return lSettings
 # end def
 
@@ -308,25 +309,28 @@ def writeMemorySettings(lSettings):
         # so ignore this item.  (parseData returns None for this item.)
         if dItem == None:
             continue
-        sResult = ''
         try:
-            # Set memory channel vfo, mode, and other data.
-            sResult += ft991.setMemory(dItem)
+            # Set the parameters for the memory location.
+            ft991.setMemory(dItem)
+            # Set current channel to memory location being set.
+            ft991.setMemoryLocation(int(dItem['memloc']))
             # Set CTCSS tone for memory channel.
-            sResult += ft991.setCTCSS(dItem['tone'])
+            ft991.setCTCSS(dItem['tone'])
             # Set DCS code for memory channel. 
-            sResult += ft991.setDCS(dItem['dcs'])
+            ft991.setDCS(dItem['dcs'])
+            # Set clarifier mode.  Note that
+            # while the 'MW' and 'MT' commands can be used to turn the Rx
+            # and Tx clarifiers on, the clarifier states can only be turned
+            # off by sending the 'RT0' and 'XT0' commands.  This situation
+            # is probably due to a bug in the CAT interface.
+            ft991.setRxClarifier(dItem['rxclar'])
+            ft991.setTxClarifier(dItem['txclar'])            
         except Exception, e:
-            print 'Backup settings file corrupted or incorrectly formatted.\n' \
-                  'Please make sure all values are correctly entered.'
+            print 'Memory settings restore operation failed. Most likely\n' \
+                  'this is due to the backup settings file corrupted or\n' \
+                  'incorrectly formatted. Look for the following error: \n'
             print e
             exit(1)
-
-        # Process any errors returned by the CAT interface.
-        if sResult.find('?;') > -1:
-            print 'Error restoring memory setting: %s' % sResult
-        if ft991.verbose:
-            print
 ## end def
 
 def readMenuSettings():
