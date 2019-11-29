@@ -14,11 +14,11 @@ Includes utilities for<br>
   * CAT command passthrough for software development<br>
   * Programming FT991 vfo/channel memory<br>
   * Backup FT991 Configuration (menu items)<br>
-  * Web based interface for Internet remote control<br>
 </p>
 
 <p>
-<b>And more to come...</b>
+<b>Future projects</b><br>
+  * Web based interface for Internet remote control<br>
 </p>
 </body>
 </html>
