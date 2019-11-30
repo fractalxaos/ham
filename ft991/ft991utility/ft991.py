@@ -132,8 +132,6 @@ def getMemory(memloc):
     # Send the get memory settings string to the FT991.
     sCmd = 'MT%0.3d;' % (memloc)
     sResult = sendCommand(sCmd)
-    if sResult == '?;':
-        return None
 
     # Parse memory settings string returned by the FT991
     memloc = sResult[2:5]
@@ -212,9 +210,9 @@ def getTxClarifier():
     return dTxClar.keys()[dTxClar.values().index(state)]
 ## end def
 
-#########################################################################
-# Define 'set' functions to encapsulate the various FT991 CAT commands. #
-#########################################################################
+#############################################################################
+# Define 'set' functions to encapsulate the various FT991 CAT commands.     #
+#############################################################################
 
 def setMemory(dMem):
     """
@@ -372,7 +370,8 @@ def setMemoryLocation(iLocation):
     Description:  Sends a formatted MC command that sets the current
                   memory location.
     Parameters: location - integer specifying memory location
-    Returns: nothing
+    Returns: None if the memory location is blank, otherwise
+             returns a string containing the memory location.
     """
     # Validate memory location data and send the command.
     if iLocation < 1 or iLocation > 118:
@@ -382,12 +381,14 @@ def setMemoryLocation(iLocation):
     # Send the completed command.
     sResult = sendCommand(sCmd)
     if sResult == '?;':
-        raise Exception('setMemoryLocation error')
+        return None
+    else:
+        return str(iLocation)
 ## end def
 
-############################################################################
-# Helper functions to assist in various tasks.                             #
-############################################################################
+#############################################################################
+# Helper functions to assist in various tasks.                              #
+#############################################################################
 
 def parseCsvData(sline):
     """
@@ -447,7 +448,9 @@ def sendCommand(sCmd):
     return sResult
 ## end def
 
-# Low level serial communications functions.
+#############################################################################
+# Low level serial communications functions.                                #
+#############################################################################
 
 def begin(baud=9600):
     """
@@ -562,28 +565,28 @@ def main():
             'mode': 'FM', 'encode': 'TONE ENC', 'tag': 'KA7JLO', \
             'clarfreq': '1234', 'rxclar': 'ON', 'txclar': 'ON' \
            }
-    setMemory(dMem)
     setMemoryLocation(int(dMem['memloc']))
+    setMemory(dMem)
     setRxClarifier(dMem['rxclar'])
     setTxClarifier(dMem['txclar'])
     setCTCSS('127.3 Hz')
     setDCS('115')
     print
-    getMemory(98)
+    getMemory(int(dMem['memloc']))
     print
     # Set and receive a memory channel
     dMem = {'memloc': '99', 'rxfreq': '146.52', 'shift': 'OFF', \
             'mode': 'FM', 'encode': 'OFF', 'tag': 'KA7JLO', \
             'clarfreq': '0', 'rxclar': 'OFF', 'txclar': 'OFF' \
            }
-    setMemory(dMem)
     setMemoryLocation(int(dMem['memloc']))
+    setMemory(dMem)
     setRxClarifier(dMem['rxclar'])
     setTxClarifier(dMem['txclar'])
     setCTCSS('141.3 Hz')
     setDCS('445')
     print
-    getMemory(99)
+    getMemory(int(dMem['memloc']))
     print
 
     # Test set commands

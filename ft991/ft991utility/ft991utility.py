@@ -264,28 +264,26 @@ def readMemorySettings():
     # Define the column headers as the first item in the list.
     lSettings = [ 'Memory Ch,Rx Frequency,Tx Frequency,Offset,' \
                         'Repeater Shift,Mode,Tag,Encoding,Tone,DCS,' \
-                        'Clarifier, RxClar, TxClar' ]
+                        'Clarifier,RxClar,TxClar' ]
 
     for iLocation in range(1, _MAX_NUMBER_OF_MEMORY_ITEMS):
 
+        # If a memory location is empty (has not been programmed or has
+        # been erased), skip that location and do not create a list entry
+        # for that location.
+        if ft991.setMemoryLocation(iLocation) == None:
+            continue
         # For each memory location get the memory contents.  Note that
         # several CAT commands are required to get the entire contents
         # of a memory location.  Specifically, additional commands are
         # required to get DCS code and CTCSS tone.
         dMem = ft991.getMemory(iLocation)
-        # If a memory location is empty (has not been programmed or has
-        # been erased), do not created a list entry for that location.
-        if dMem == None:
-            continue
-        # Set current memory location to the channel being set.
-        sResult = ft991.setMemoryLocation(iLocation)
-        # Get DCS and CTCSS.
         tone = ft991.getCTCSS()
         dcs = ft991.getDCS()
         # getMemory, above, stores data in a dictionary object.  Format
         # the data in this object, as well as, the DCS code and CTCSS
         # tone into a comma-delimited string.
-        sCsvFormat = '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,' % \
+        sCsvFormat = '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s' % \
                ( dMem['memloc'], dMem['rxfreq'], '', '', \
                  dMem['shift'], dMem['mode'], dMem['tag'], dMem['encode'], \
                  tone, dcs, dMem['clarfreq'], dMem['rxclar'], \
@@ -310,10 +308,10 @@ def writeMemorySettings(lSettings):
         if dItem == None:
             continue
         try:
-            # Set the parameters for the memory location.
-            ft991.setMemory(dItem)
             # Set current channel to memory location being set.
             ft991.setMemoryLocation(int(dItem['memloc']))
+            # Set the parameters for the memory location.
+            ft991.setMemory(dItem)
             # Set CTCSS tone for memory channel.
             ft991.setCTCSS(dItem['tone'])
             # Set DCS code for memory channel. 
@@ -520,7 +518,7 @@ def main():
 
     # Else enter user interactive mode.
     printMenuSplash()
-    while(1):
+    while(True):
         doUserCommand()
 ## end def
 
