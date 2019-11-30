@@ -308,10 +308,10 @@ def writeMemorySettings(lSettings):
         if dItem == None:
             continue
         try:
-            # Set current channel to memory location being set.
-            ft991.setMemoryLocation(int(dItem['memloc']))
             # Set the parameters for the memory location.
             ft991.setMemory(dItem)
+            # Set current channel to memory location being set.
+            ft991.setMemoryLocation(int(dItem['memloc']))
             # Set CTCSS tone for memory channel.
             ft991.setCTCSS(dItem['tone'])
             # Set DCS code for memory channel. 
