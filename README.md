@@ -20,12 +20,16 @@ Includes utilities for<br>
 
 <p>
 <b>FT991A Future projects</b><br>
+<ul>
   * Web based interface for Internet remote control<br>
+</ul>
 </p>
 
 <p>
-<b>AREDN Mesh</b>
+<b>AREDN Mesh</b><br>
+<ul>
   * Web app for viewing long term SNR statistics
+</ul>
 </p>
 </body>
 </html>
