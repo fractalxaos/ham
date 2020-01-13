@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<!-- Courtesy ruler for editing this file
+12345678901234567890123456789012345678901234567890123456789012345678901234567890
+-->
+<html>
+<head>
+<title>Node Signal</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body {
+    background-image: url("static/chalk.jpg");
+}
+h2 {
+    font: bold 24px arial, sans-serif;
+}
+h3 {
+    font: bold 18px arial, sans-serif;
+}
+h4 {
+    font: bold 16px arial, sans-serif;
+}
+.mainContainer {
+    width: 750px;
+    text-align: center;
+    margin: auto;
+}
+.datetime {
+    font: bold 22px arial, sans-serif;
+    padding: 0px;
+}
+.rowContainer {
+    display: table;
+    width: 100%;
+}
+.currentDataCell {
+    width: 50%;
+    padding: 10px;
+    font: bold 20px arial, sans-serif;
+    text-align: center;
+    display: table-cell;
+    vertical-align: middle;
+    /*border: 1px solid black;*/
+}
+.dataItems {
+    padding: 2px;
+    text-align: left;
+    line-height: 130%;
+    display: inline-block;
+    vertical-align: middle;
+}
+.chartContainer {
+    padding: 2px;
+}
+img.chart {
+    width:100%;
+}
+.notes {
+    font: 17px arial, sans-serif;
+    text-align: left;
+    padding: 10px;
+}
+span.chartNav {
+    margin: auto;
+}
+ul.chartNav {
+    list-style-type: none;
+    margin: 10px;
+    padding: 0;
+    overflow: hidden;
+    background-color: #bbb;
+    text-align: center;
+}
+li.chartNav {
+    display: inline-block;
+    font: bold 18px arial, sans-serif;
+    color: black;
+}
+text.chartNav:hover {
+    background-color: #333;
+    cursor: pointer;
+    color: white;
+}
+text.chartNav {
+    display: inline-block;
+    padding: 8px 12px;
+}
+</style>
+</head>
+
+<body onload="main()">
+
+<div class="mainContainer">
+
+<h2><a href="https://github.com/fractalxaos/arednstat" 
+style="text-decoration:none" target="_new">
+KA7JLO Aredn Node Signal</a></h2>
+<h3>Last Updated</h3>
+<div class="datetime">
+<text id="date"></text>
+&nbsp;&nbsp;
+<text id="time"></text>
+</div>
+
+<div class="rowContainer">
+<div class="currentDataCell">
+<div class="dataItems" style="text-align: right;">
+Status:<br>
+Page updates every:
+</div>
+<div class="dataItems">
+<text id="status"></text><br>
+<text id="period"></text> minutes
+</div>
+</div>
+</div>
+
+<span class="chartNav">
+<ul class="chartNav">
+<li class="chartNav">Select charts:</li>
+<li class="chartNav"><text class="chartNav" onclick="setChartPeriod(1)">
+24 hours</text></li>
+<li class="chartNav"><text class="chartNav" onclick="setChartPeriod(2)">
+4 weeks</text></li>
+<li class="chartNav"><text class="chartNav" onclick="setChartPeriod(3)">
+12 months</text></li>
+</ul>
+</span>
+<br>
+
+<div class="chartContainer">
+<img class="chart" id="snrChart">
+</div>
+
+<div class="chartContainer">
+<img class="chart" id="signalChart">
+</div>
+
+<div class="chartContainer">
+<img class="chart" id="noiseChart">
+</div>
+
+<div class="chartContainer">
+<img class="chart" id="rxrateChart">
+</div>
+
+<div class="chartContainer">
+<img class="chart" id="txrateChart">
+</div>
+
+<div class="notes">
+<b>NOTES:</b>
+<ul>
+<li>Aredn Node Signal software available at
+<a href="https://github.com/fractalxaos/radmon" target="_new">
+<i>Github.com</i></a>.</li>
+<li>Project sponsored by 
+<a href="https://willamettevalleymesh.net" TARGET="_NEW">
+<i>Willamette Valley Mesh Network</i></a>, Salem, Oregon.</li>
+<li>For more information about the amateur radio emergency
+ data network (AREDN) see official web site at
+ <a href="http://www.arednmesh.org" target="_blank">
+www.arednmesh.org</a>.</li>
+</ul>
+</div>
+</div>
+<br>
+
+<script>
+
+/* Global constants */
+
+var nodeDataUrl = "dynamic/nodeOnline.js";
+
+/* Global DOM objects */
+
+// Chart elements
+var snrChart = document.getElementById("snrChart");
+var signalChart = document.getElementById("signalChart");
+var noiseChart = document.getElementById("noiseChart");
+var rxrateChart = document.getElementById("rxrateChart");
+var txrateChart = document.getElementById("txrateChart");
+
+// Text elements
+var dateElmt = document.getElementById("date");    
+var timeElmt = document.getElementById("time"); 
+var statusElmt = document.getElementById("status");
+var periodElmt = document.getElementById("period");
+/* Global objects */
+
+var httpRequest = new XMLHttpRequest();
+
+/* Global variables */
+
+var graphPeriod;
+var graphRefreshRate = 10; // chart refresh rate in minutes
+
+function main() {
+    /* Register call back function to process http requests */
+    httpRequest.onreadystatechange = function() {
+        if (httpRequest.readyState == 4 && httpRequest.status == 200) {
+            var dataArray = JSON.parse(httpRequest.responseText);
+            displayData(dataArray[0]);
+        } else if (httpRequest.readyState == 4 && httpRequest.status == 404) {
+            displayOfflineStatus();
+        }
+    };
+    httpRequest.ontimeout = function(e) {
+        displayOfflineStatus();
+    };
+
+    getNodeData();
+    graphPeriod = 1;
+    getNodeGraphs();
+}
+
+function getNodeData() {
+    httpRequest.open("GET", nodeDataUrl, true);
+    httpRequest.timeout = 3000;
+    httpRequest.send();
+}
+
+function setChartPeriod(n) {
+    graphPeriod = n;
+    getNodeGraphs();   
+}
+
+function getNodeGraphs() {
+    var d = new Date;
+    var pfx;
+
+    switch(graphPeriod) {
+        case 1:
+            pfx = "24hr_";
+            break;
+        case 2:
+            pfx = "4wk_";
+            break;
+       case 3:
+            pfx = "12m_";
+            break;
+    }
+    signalChart.src = "dynamic/" + pfx + "signal.png?ver=" + d.getTime();
+    noiseChart.src = "dynamic/" + pfx + "noise.png?ver=" + d.getTime();
+    snrChart.src = "dynamic/" + pfx + "snr.png?ver=" + d.getTime();
+    rxrateChart.src = "dynamic/" + pfx + "rx_rate.png?ver=" + d.getTime();
+    txrateChart.src = "dynamic/" + pfx + "tx_rate.png?ver=" + d.getTime();
+}
+
+function displayData(dataItem) {
+    var timeStamp, date, time, hourminute;
+    var localDateObj,localTimeZone;
+
+    timeStamp = dataItem.date;
+    date = timeStamp.split(" ")[0];
+    time = timeStamp.split(" ")[1];
+    hourminute = time.split(":")[0] + ":" + time.split(":")[1];
+    localDate = new Date();
+    localTimeZone = localDate.getTimezoneOffset() / 60;
+    dateElmt.innerHTML = date;    
+    timeElmt.innerHTML = hourminute +
+        "  <small>(GMT+" + localTimeZone + ")</small>";    
+     
+    statusElmt.innerHTML = "Online";
+    statusElmt.style.color = "green";
+
+    graphRefreshRate = dataItem.period;
+    periodElmt.innerHTML = graphRefreshRate;
+    setInterval(getNodeData, 60000 * graphRefreshRate);
+    setInterval(getNodeGraphs, 60000 * graphRefreshRate);
+}
+
+function displayOfflineStatus() {
+    var d = new Date();
+    localTimeZone = d.getTimezoneOffset() / 60;
+    dateElmt.innerHTML = (d.getMonth() + 1) + "/" + d.getDate() + "/" +
+                       d.getFullYear();    
+    timeElmt.innerHTML = d.getHours() + ":" + d.getMinutes() +
+                       "  <small>(GMT+" + localTimeZone + ")</small>";
+    periodElmt.innerHTML = "?";    
+    statusElmt.innerHTML = "offline";    
+    statusElmt.style.color = "red";
+}
+
+</script>
+
+</body>
+</html>
+
