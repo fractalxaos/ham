@@ -11,12 +11,13 @@
 
 <p><b>Yaesu FT991A Transceiver</b><br>
 <ul>
-A utility for
+<li>FT991 Utility
 <ul>
 <li>CAT command passthrough for software development</li>
 <li>Programming FT991 vfo/channel memory</li>
 <li>Backup FT991 Configuration (menu items)</li>
 </ul>
+</li>
 </ul>
 </p>
 
