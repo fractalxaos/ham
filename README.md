@@ -11,24 +11,26 @@
 
 <p><b>Yaesu FT991A Transceiver</b><br>
 <ul>
-Includes utilities for<br>
-  * CAT command passthrough for software development<br>
-  * Programming FT991 vfo/channel memory<br>
-  * Backup FT991 Configuration (menu items)<br>
+A utility for
+<ul>
+<li>CAT command passthrough for software development</li>
+<li>Programming FT991 vfo/channel memory</li>
+<li>Backup FT991 Configuration (menu items)</li>
+</ul>
 </ul>
 </p>
 
 <p>
 <b>FT991A Future projects</b><br>
 <ul>
-  * Web based interface for Internet remote control<br>
+<li>Web based interface for Internet remote control</li>
 </ul>
 </p>
 
 <p>
 <b>AREDN Mesh</b><br>
 <ul>
-  * Web app for viewing long term SNR statistics
+<li>Web app for viewing long term SNR statistics</li>
 </ul>
 </p>
 </body>
