@@ -5,7 +5,7 @@
 # Module: arednsigAgent.py
 #
 # Description: This module acts as an agent between the aredn node
-# and aredn mesh web services.  The agent periodically sends an http
+# and aredn mest services.  The agent periodically sends an http
 # request to the aredn node, processes the response from
 # the node, and performs a number of operations:
 #     - conversion of data items
@@ -57,8 +57,8 @@ _DOCROOT_PATH = "/home/%s/public_html/arednsig/" % _USER
 _CHARTS_DIRECTORY = _DOCROOT_PATH + "dynamic/"
 # location of data output file
 _OUTPUT_DATA_FILE = _DOCROOT_PATH + "dynamic/arednsigOutputData.js"
-# small size output data file for heartbeat signal to html docs
-_SMALL_OUTPUT_FILE = _DOCROOT_PATH + "dynamic/nodeOnline.js"
+# dummy output data file
+_DUMMY_OUTPUT_FILE = _DOCROOT_PATH + "dynamic/nodeOnline.js"
 # database that stores radmon data
 _RRD_FILE = "/home/%s/database/arednsigData.rrd" % _USER
 
@@ -74,6 +74,8 @@ _HTTP_REQUEST_TIMEOUT = 10
 _CHART_WIDTH = 600
 # standard chart height in pixels
 _CHART_HEIGHT = 150
+# source of time stamp attached to output data file
+_USE_NODE_TIMESTAMP = True
 
    ### GLOBAL VARIABLES ###
 
@@ -89,7 +91,9 @@ failedUpdateCount = 0
 # detected status of aredn node device
 nodeOnline = True
 
-# network address of aredn node
+# status of reset command to aredn node
+remoteDeviceReset = False
+# ip address of aredn node
 arednNodeUrl = _DEFAULT_AREDN_NODE_URL
 # frequency of data requests to aredn node
 dataRequestInterval = _DEFAULT_DATA_REQUEST_INTERVAL
@@ -142,8 +146,8 @@ def setStatusToOffline():
     # Inform downstream clients by removing output data file.
     if os.path.exists(_OUTPUT_DATA_FILE):
        os.remove(_OUTPUT_DATA_FILE)
-    if os.path.exists(_SMALL_OUTPUT_FILE):
-       os.remove(_SMALL_OUTPUT_FILE)
+    if os.path.exists(_DUMMY_OUTPUT_FILE):
+       os.remove(_DUMMY_OUTPUT_FILE)
     # If the aredn node was previously online, then send
     # a message that we are now offline.
     if nodeOnline:
@@ -162,8 +166,8 @@ def terminateAgentProcess(signal, frame):
     # Inform downstream clients by removing output data file.
     if os.path.exists(_OUTPUT_DATA_FILE):
        os.remove(_OUTPUT_DATA_FILE)
-    if os.path.exists(_SMALL_OUTPUT_FILE):
-       os.remove(_SMALL_OUTPUT_FILE)
+    if os.path.exists(_DUMMY_OUTPUT_FILE):
+       os.remove(_DUMMY_OUTPUT_FILE)
     print '%s terminating arednsig agent process' % \
               (getTimeStamp())
     sys.exit(0)
@@ -188,8 +192,8 @@ def getArednNodeData():
         del conn
 
     except Exception, exError:
-        # If no response is received from the node, then assume that
-        # the node is down or unavailable over the network.  In
+        # If no response is received from the device, then assume that
+        # the device is down or unavailable over the network.  In
         # that case return None to the calling function.
         print "%s http error: %s" % (getTimeStamp(), exError)
         return None
@@ -205,23 +209,11 @@ def parseNodeData(sData, ldData):
        into its component parts.  
        Parameters:
            sData - the string containing the data to be parsed
-           ldData - a list object to contain the parsed data items
+           dData - a dictionary object to contain the parsed data items
        Returns: True if successful, False otherwise
     """
-    # Only interested in datapoints that have arrived during the
-    # current update cycle defined by the data request interval.
-    # The default is sixty minutes, and the node records a data point
-    # once a minute.  Therefore, in the default case, extract the last
-    # sixty data points from the node's response.  Otherwise, extract
-    # a number of datapoints equal the the data request interval
-    # (in minutes). 
     iTrail = int(dataRequestInterval)
 
-    # The node response with json object containing 24 hours worth
-    # of datapoints.  Each data point is, itself, a json object.
-    # The following code converts the json object to a python list
-    # object containing dictionary objects.  Each dictionary object
-    # stores one data point.
     try:
         ldTmp = json.loads(sData[1:-1])
         ldTmp = ldTmp[-iTrail:]
@@ -230,9 +222,7 @@ def parseNodeData(sData, ldData):
     except Exception, exError:
         print "%s parse failed: %s" % (getTimeStamp(), exError)
         return False
-       
-    # Store the dictionary objects in the list object passed by
-    # reference to this function.
+    
     del ldData[:]
     for item in ldTmp:
         ldData.append(item)
@@ -245,7 +235,7 @@ def parseNodeData(sData, ldData):
 def convertData(ldData):
     """Convert individual node signal data items as necessary.
        Parameters:
-           ldData - a list object containing the node signal data
+           dData - a dictionary object containing the node signal data
        Returns: True if successful, False otherwise
     """
     # parse example string
@@ -255,9 +245,6 @@ def convertData(ldData):
     #
     for item in ldData:
         try:
-            # Convert data items to the required data types
-            # (all integer in this case).  Change the dictionary
-            # object keys to more friendly names.
             item['time'] = int(item.pop('x')) / 1000
             item['signal'] = int(item['y'][0])
             item['noise'] = int(item['y'][1])
@@ -282,8 +269,8 @@ def updateDatabase(ldData):
     Update the rrdtool database by executing an rrdtool system command.
     Format the command using the data extracted from the aredn node
     response.   
-    Parameters: ldData - a list object containing data items to be
-                        written to the RRD file
+    Parameters: dData - dictionary object containing data items to be
+                        written to the rr database file
     Returns: True if successful, False otherwise
     """
     updateCount = 0
@@ -293,9 +280,7 @@ def updateDatabase(ldData):
          print "updating database..."
 
     for item in ldData:
-        # Throw out data points that have a time stamp earlier
-        # than the last entry in the round-robin database (RRD).
-        # rrdtool will throw an error in this case.
+
         if item['time'] <= lastDataPointTime:
             if verboseDebug:
                 print "%s invalid timestamp: discarding data" % \
@@ -349,7 +334,7 @@ def writeOutputDataFile(sData, ldData):
     sDate = "[{\"date\":\"%s\",\"period\":\"%s\"}]" % \
            (lastUpdate, dataRequestInterval)
     try:
-        fc = open(_SMALL_OUTPUT_FILE, "w")
+        fc = open(_DUMMY_OUTPUT_FILE, "w")
         fc.write(sDate)
         fc.close()
     except Exception, exError:

@@ -24,6 +24,7 @@ h4 {
     width: 750px;
     text-align: center;
     margin: auto;
+    /*border: 1px solid black;*/
 }
 .datetime {
     font: bold 22px arial, sans-serif;
@@ -40,7 +41,6 @@ h4 {
     text-align: center;
     display: table-cell;
     vertical-align: middle;
-    /*border: 1px solid black;*/
 }
 .dataItems {
     padding: 2px;
@@ -60,10 +60,10 @@ img.chart {
     text-align: left;
     padding: 10px;
 }
-span.chartNav {
+span.navContainer {
     margin: auto;
 }
-ul.chartNav {
+ul.navElement {
     list-style-type: none;
     margin: 10px;
     padding: 0;
@@ -71,19 +71,24 @@ ul.chartNav {
     background-color: #bbb;
     text-align: center;
 }
-li.chartNav {
+li.navElement {
     display: inline-block;
     font: bold 18px arial, sans-serif;
     color: black;
 }
-text.chartNav:hover {
+span.navElement:hover {
     background-color: #333;
     cursor: pointer;
     color: white;
 }
-text.chartNav {
+span.navElement {
     display: inline-block;
     padding: 8px 12px;
+}
+#iframe_a {
+    border:none;
+    width:100%;
+    height:450px;
 }
 </style>
 </head>
@@ -97,9 +102,9 @@ style="text-decoration:none" target="_new">
 KA7JLO Aredn Node Signal</a></h2>
 <h3>Last Updated</h3>
 <div class="datetime">
-<text id="date"></text>
+<span id="date"></span>
 &nbsp;&nbsp;
-<text id="time"></text>
+<span id="time"></span>
 </div>
 
 <div class="rowContainer">
@@ -109,43 +114,51 @@ Status:<br>
 Page updates every:
 </div>
 <div class="dataItems">
-<text id="status"></text><br>
-<text id="period"></text> minutes
+<span id="status"></span><br>
+<span id="period"></span> minutes
 </div>
 </div>
 </div>
 
-<span class="chartNav">
-<ul class="chartNav">
-<li class="chartNav">Select charts:</li>
-<li class="chartNav"><text class="chartNav" onclick="setChartPeriod(1)">
-24 hours</text></li>
-<li class="chartNav"><text class="chartNav" onclick="setChartPeriod(2)">
-4 weeks</text></li>
-<li class="chartNav"><text class="chartNav" onclick="setChartPeriod(3)">
-12 months</text></li>
+<span class="navContainer">
+<ul class="navElement">
+<li class="navElement">Select charts:</li>
+<li class="navElement"><span class="navElement" onclick="setChartPeriod(1)">
+24 hours</span></li>
+<li class="navElement"><span class="navElement" onclick="setChartPeriod(2)">
+4 weeks</span></li>
+<li class="navElement"><span class="navElement" onclick="setChartPeriod(3)">
+12 months</span></li>
+<li class="navElement"><span class="navElement" onclick="setChartPeriod(0)">
+Custom...</span></li>
 </ul>
 </span>
-<br>
 
-<div class="chartContainer">
-<img class="chart" id="snrChart">
+<div class="rowContainer" id="customChartsContainer" style="display:none;">
+<div class="currentDataCell">
+<form id="fmDateSelector" action="arednsig.php" method="post"
+ target="iframe_a">
+<label for="beginDate">Begin Date: </label>
+<input id="beginDate" name="beginDate" type="date" value="mm/dd/yyyy" />
+<label for="endDate">End Date: </label>
+<input id="endDate" name="endDate" type="date" value="mm/dd/yyyy" />
+<br><br>
+<input type="button" onclick="getCustomCharts()" value="Get Charts">
+</form>
+<span id="errorMsg"></span><br>
+<iframe id="iframe_a" name="iframe_a"></iframe>
+</div>
 </div>
 
+<br>
+
+<div class="rowContainer" id="stockChartsContainer">
 <div class="chartContainer">
 <img class="chart" id="signalChart">
 </div>
-
 <div class="chartContainer">
-<img class="chart" id="noiseChart">
+<img class="chart" id="snrChart">
 </div>
-
-<div class="chartContainer">
-<img class="chart" id="rxrateChart">
-</div>
-
-<div class="chartContainer">
-<img class="chart" id="txrateChart">
 </div>
 
 <div class="notes">
@@ -175,25 +188,32 @@ var nodeDataUrl = "dynamic/nodeOnline.js";
 /* Global DOM objects */
 
 // Chart elements
-var snrChart = document.getElementById("snrChart");
 var signalChart = document.getElementById("signalChart");
-var noiseChart = document.getElementById("noiseChart");
-var rxrateChart = document.getElementById("rxrateChart");
-var txrateChart = document.getElementById("txrateChart");
+var snrChart = document.getElementById("snrChart");
 
 // Text elements
 var dateElmt = document.getElementById("date");    
 var timeElmt = document.getElementById("time"); 
 var statusElmt = document.getElementById("status");
 var periodElmt = document.getElementById("period");
+
+// Document elements
+var customChartsContainer = document.getElementById("customChartsContainer");
+var stockChartsContainer = document.getElementById("stockChartsContainer");
+var chartContainer = document.getElementsByClassName("chartContainer");
+var fmDateSelector = document.getElementById("fmDateSelector");
+var beginDate = document.getElementById("beginDate");
+var endDate = document.getElementById("endDate");
+var errorMsg = document.getElementById("errorMsg");
+
 /* Global objects */
 
 var httpRequest = new XMLHttpRequest();
 
 /* Global variables */
 
-var graphPeriod;
-var graphRefreshRate = 10; // chart refresh rate in minutes
+var chartPeriod = 1;
+var chartRefreshRate = 10; // chart refresh rate in minutes
 
 function main() {
     /* Register call back function to process http requests */
@@ -209,9 +229,9 @@ function main() {
         displayOfflineStatus();
     };
 
+    initializeDateSelector();
     getNodeData();
-    graphPeriod = 1;
-    getNodeGraphs();
+    getNodeCharts();
 }
 
 function getNodeData() {
@@ -221,15 +241,22 @@ function getNodeData() {
 }
 
 function setChartPeriod(n) {
-    graphPeriod = n;
-    getNodeGraphs();   
+    chartPeriod = n;
+    if (n == 0) {
+        customChartsContainer.style.display = "block";
+        stockChartsContainer.style.display = "none";
+    } else {
+        customChartsContainer.style.display = "none";
+        stockChartsContainer.style.display = "block";
+    getNodeCharts();   
+    }
 }
 
-function getNodeGraphs() {
+function getNodeCharts() {
     var d = new Date;
     var pfx;
 
-    switch(graphPeriod) {
+    switch(chartPeriod) {
         case 1:
             pfx = "24hr_";
             break;
@@ -241,10 +268,7 @@ function getNodeGraphs() {
             break;
     }
     signalChart.src = "dynamic/" + pfx + "signal.png?ver=" + d.getTime();
-    noiseChart.src = "dynamic/" + pfx + "noise.png?ver=" + d.getTime();
     snrChart.src = "dynamic/" + pfx + "snr.png?ver=" + d.getTime();
-    rxrateChart.src = "dynamic/" + pfx + "rx_rate.png?ver=" + d.getTime();
-    txrateChart.src = "dynamic/" + pfx + "tx_rate.png?ver=" + d.getTime();
 }
 
 function displayData(dataItem) {
@@ -259,29 +283,51 @@ function displayData(dataItem) {
     localTimeZone = localDate.getTimezoneOffset() / 60;
     dateElmt.innerHTML = date;    
     timeElmt.innerHTML = hourminute +
-        "  <small>(GMT+" + localTimeZone + ")</small>";    
+                         "  <small>(GMT+" + localTimeZone + ")</small>";    
      
     statusElmt.innerHTML = "Online";
     statusElmt.style.color = "green";
 
-    graphRefreshRate = dataItem.period;
-    periodElmt.innerHTML = graphRefreshRate;
-    setInterval(getNodeData, 60000 * graphRefreshRate);
-    setInterval(getNodeGraphs, 60000 * graphRefreshRate);
+    chartRefreshRate = dataItem.period;
+    periodElmt.innerHTML = chartRefreshRate;
+    setInterval(getNodeData, 60000 * chartRefreshRate);
+    setInterval(getNodeCharts, 60000 * chartRefreshRate);
 }
 
 function displayOfflineStatus() {
     var d = new Date();
     localTimeZone = d.getTimezoneOffset() / 60;
     dateElmt.innerHTML = (d.getMonth() + 1) + "/" + d.getDate() + "/" +
-                       d.getFullYear();    
+                          d.getFullYear();    
     timeElmt.innerHTML = d.getHours() + ":" + d.getMinutes() +
-                       "  <small>(GMT+" + localTimeZone + ")</small>";
+                         "  <small>(GMT+" + localTimeZone + ")</small>";
     periodElmt.innerHTML = "?";    
     statusElmt.innerHTML = "offline";    
     statusElmt.style.color = "red";
 }
 
+function initializeDateSelector() {
+    var d = new Date();
+
+    var dEnd = new Date(d.getFullYear(),
+               d.getMonth(), d.getDate() - 0);
+
+    var dBegin = new Date(d.getFullYear(),
+               d.getMonth(), d.getDate() - 1);
+
+    var strBegin = dBegin.getFullYear() + "-" + (dBegin.getMonth() + 1) + 
+                   "-" + dBegin.getDate();
+    var strEnd = dEnd.getFullYear() + "-" + (dEnd.getMonth() + 1) + 
+                 "-" + dEnd.getDate();
+
+    beginDate.valueAsDate = dBegin;
+    endDate.valueAsDate = dEnd;
+    //errorMsg.innerHTML = strBegin + " thru " + strEnd;
+}
+
+function getCustomCharts() {
+    fmDateSelector.submit();
+}
 </script>
 
 </body>

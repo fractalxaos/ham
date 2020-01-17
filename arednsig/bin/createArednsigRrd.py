@@ -1,7 +1,6 @@
 #!/usr/bin/python -u
-# The -u option above turns off block buffering of python output. This
-# assures that each error message gets individually printed to the
-# log file.
+## The -u option above turns off block buffering of python output. This assures
+## that each error message gets individually printed to the log file.
 #
 # Module: createArednsigRrd.py
 #
@@ -27,7 +26,6 @@
 # Revision History
 #   * v10 released 11 Jan 2020 by J L Owrey
 #
-#2345678901234567890123456789012345678901234567890123456789012345678901234567890
 import os
 import time
 import subprocess
@@ -35,11 +33,8 @@ import subprocess
     ### DEFINE FILE LOCATIONS ###
 
 _USER = os.environ['USER']
-# the RRD file that stores the data
+# the file that stores the data
 _RRD_FILE = "/home/%s/database/arednsigData.rrd" % _USER
-
-    ### DEFINE DATABASE GRANULARITY AND TIME SPAN ###
-
 _RRD_SIZE_IN_DAYS = 370 # days
 _1YR_RRA_STEPS_PER_DAY = 96
 _DATABASE_UPDATE_INTERVAL = 60
@@ -49,6 +44,7 @@ def createRrdFile():
        Parameters: none
        Returns: True, if successful
     """
+
     if os.path.exists(_RRD_FILE):
         print "aredn node database already exists"
         return True
@@ -61,8 +57,6 @@ def createRrdFile():
     rrd24hrNumRows = int(round(86400 / _DATABASE_UPDATE_INTERVAL))
     rrd1yearNumRows = _1YR_RRA_STEPS_PER_DAY * _RRD_SIZE_IN_DAYS
        
-    ## Format rrdtool command to create RRD database
-     
     strFmt = ("rrdtool create %s --start now-1day --step %s "
               "DS:S:GAUGE:%s:U:U DS:N:GAUGE:%s:U:U DS:SNR:GAUGE:%s:U:U "
               "DS:RX_MCS:GAUGE:%s:U:U DS:TX_MCS:GAUGE:%s:U:U "
@@ -74,10 +68,9 @@ def createRrdFile():
                 heartBeat,  heartBeat, heartBeat,            \
                 rrd24hrNumRows, rra1yrNumPDP, rrd1yearNumRows)
 
-    ## Run the command as a shell subprocess
-
     print "creating aredn node database...\n\n%s\n" % strCmd
 
+    # Spawn a sub-shell and run the command
     try:
         subprocess.check_output(strCmd, stderr=subprocess.STDOUT, \
                                 shell=True)
