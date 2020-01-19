@@ -24,43 +24,74 @@ img.chart {
 
 <?php
 /*
- done - Convert dates to  epoch time
- done - Rrdtool - get first in time and last in time
- From above validate begin and end dates
- Rrdtool - create charts of time period
+ Script: arednsig.php
 
- use $output = shell_exec($cmd); to execute rrdtool commands
+ Description: This scripts generates on the server charts showing
+ signal data spanning the period supplied by the user.  The script
+ does the following:
+    - converts user supplied dates to  epoch time
+    - gets the times of the first and last data point in the round
+      robin database (RRD)
+    - from above validates user supplied begin and end dates
+    - creates charts of the specified period
 
+ Copyright 2020 Jeff Owrey
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see http://www.gnu.org/license.
+
+ Revision History
+   * v20 released 18 Jan 2020 by J L Owrey; first release
 */
-# round robin database file
-$_RRD_FILE = "/home/pi/database/arednsigData.rrd";
-# charts html directory
-$_GRAPH_DIRECTORY = "/home/pi/public_html/arednsig/dynamic/";
-# standard chart width in pixels
-$_GRAPH_WIDTH = 600;
-# standard chart height in pixels
-$_GRAPH_HEIGHT = 150;
-# debug mode
-$_DEBUG = false;
 
+# Define global constants
+
+# round robin database file
+define("_RRD_FILE", str_replace("public_html/arednsig/arednsig.php",
+                                "database/arednsigData.rrd",
+                                $_SERVER["SCRIPT_FILENAME"]));
+# charts html directory
+define("_CHART_DIRECTORY", str_replace("arednsig.php",
+                                       "dynamic/",
+                                       $_SERVER["SCRIPT_FILENAME"]));
+# standard chart width in pixels
+define("_CHART_WIDTH", 600);
+# standard chart height in pixels
+define("_CHART_HEIGHT", 150);
+# debug mode
+define("_DEBUG", false);
+
+# Set error handling modes.
 error_reporting(E_ALL);
 
 # Get user supplied chart begin and end dates.
-
 $beginDate = $_POST["beginDate"];
 $endDate =  $_POST["endDate"];
 
-$cmd = sprintf("rrdtool first %s --rraindex 1",$_RRD_FILE);
-$firstDP = shell_exec($cmd);
-
-$cmd = sprintf("rrdtool last %s", $_RRD_FILE);
-$lastDP = shell_exec($cmd);
-
+# Convert the user supplied dates to epoch time stamps.
 $beginDateEp = strtotime($beginDate);
 $endDateEp = strtotime($endDate);
 
-# data entry validation and error checking
+# Get the time stamp of the earliest data point in the RRD file.
+$cmd = sprintf("rrdtool first %s --rraindex 1", _RRD_FILE);
+$firstDP = shell_exec($cmd);
 
+# Get the time stamp of the latest data point in the RRD file.
+$cmd = sprintf("rrdtool last %s", _RRD_FILE);
+$lastDP = shell_exec($cmd);
+
+# Determine validity of user supplied dates.  User supplied begin
+# date must be less than user supplied end date.  Furthermore both
+# dates must be within the range of dates stored in the RRD.
 if ($beginDateEp > $endDateEp) {
     echo "<p id=\"errorMsg\">" .
          "End date must be after begin date.</p>";
@@ -70,17 +101,18 @@ if ($beginDateEp > $endDateEp) {
           date('m / d / Y', $firstDP) . " and " . 
           date('m / d / Y', $lastDP) . ".</p>";
 } else {
+    # Generate charts from validated user supplied dates.
+    if (_DEBUG) {
+        echo "<p>Date range: " . $beginDateEp . " thru " .
+              $endDateEp . "</p>";
+    }
     createChart('custom_signal', 'S', 'dBm', 
                 'RSSI', $beginDateEp, $endDateEp,
                  0, 0, 2, false);
     createChart('custom_snr', 'SNR', 'dBm', 
                 'S/N', $beginDateEp, $endDateEp,
                  0, 0, 2, false);
-    if ($_DEBUG) {
-        echo "<p>Date range: " . $beginDateEp . " thru " .
-              $endDateEp . "</p>";
-    }
-
+    # Send html commands to client browser.
     echo "<div class=\"chartContainer\">" .
          "<img class=\"chart\" src=\"dynamic/custom_signal.png\">" .
          "</div>";
@@ -110,18 +142,19 @@ function createChart($chartFile, $dataItem, $label, $title, $begin,
            lower and upper parameters to set vertical axis scale
     Returns: True if successful, False otherwise
     */
-    global $_DEBUG, $_GRAPH_DIRECTORY, $_GRAPH_WIDTH,
-           $_GRAPH_HEIGHT, $_RRD_FILE;
 
-    $chartPath = $_GRAPH_DIRECTORY . $chartFile . ".png";
+    # Define path on server to chart files.
+    $chartPath = _CHART_DIRECTORY . $chartFile . ".png";
 
     # Format the rrdtool chart command.
 
-    # Set chart start time, height, and width.
+    # Set chart file name, start time, end time, height, and width.
     $cmdfmt = "rrdtool graph %s -a PNG -s %s -e %s -w %s -h %s ";
-    $cmd = sprintf($cmdfmt, $chartPath, $begin, $end, $_GRAPH_WIDTH,
-                   $_GRAPH_HEIGHT);
+    $cmd = sprintf($cmdfmt, $chartPath, $begin, $end, _CHART_WIDTH,
+                   _CHART_HEIGHT);
     $cmdfmt = "-l %s -u %s -r ";
+
+    # Set upper and lower ordinate bounds.
     if ($lower < $upper) {
         $cmd .= sprintf($cmdfmt, $lower, $upper);
     } elseif ($autoScale) {
@@ -133,13 +166,13 @@ function createChart($chartFile, $dataItem, $label, $title, $begin,
     $cmdfmt = "-v %s -t %s ";
     $cmd .= sprintf($cmdfmt, $label, $title);
    
+    # Define moving average window width.
+    $trendWindow = floor(($end - $begin) / 12);
+        
     # Show the data, or a moving average trend line over
     # the data, or both.
-    $trendWindow = floor(($end - $begin) / 12);
-    
     $cmdfmt = "DEF:dSeries=%s:%s:LAST ";
-    $cmd .= sprintf($cmdfmt, $_RRD_FILE, $dataItem);
-
+    $cmd .= sprintf($cmdfmt, _RRD_FILE, $dataItem);
     if ($addTrend == 0) {
         $cmd .= "LINE1:dSeries#0400ff ";
     } elseif ($addTrend == 1) {
@@ -148,15 +181,20 @@ function createChart($chartFile, $dataItem, $label, $title, $begin,
     } elseif ($addTrend == 2) {
         $cmd .= "LINE1:dSeries#0400ff ";
         $cmdfmt = "CDEF:smoothed=dSeries,%s,TREND LINE3:smoothed#ff0000 ";
+        #$cmdfmt = "CDEF:smoothed=dSeries,%s,XYZZY LINE3:smoothed#ff0000 ";
         $cmd .=  sprintf($cmdfmt, $trendWindow);
     }
      
-    if ($_DEBUG) {
+    # Execute the formatted rrdtool command in the shell. The rrdtool
+    # command will complete execution before the html image tags get
+    # sent to the browser.  This assures that the charts are available
+    # when the client browser executes the html code that loads the
+    # charts into the document displayed by the client browser.
+    if (_DEBUG) {
         echo "<p>chart command:<br>" . $cmd . "</p>";
     }
-
-    $result = shell_exec($cmd . "2>&1");
-    if ($_DEBUG == true) {
+    $result = shell_exec($cmd . " 2>&1");
+    if (_DEBUG) {
         echo "<p>result:<br>" . $result . "</p>";
     }
 }

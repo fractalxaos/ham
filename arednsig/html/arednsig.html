@@ -60,10 +60,10 @@ img.chart {
     text-align: left;
     padding: 10px;
 }
-span.navContainer {
+span.chartSelector {
     margin: auto;
 }
-ul.navElement {
+ul.selectorElement {
     list-style-type: none;
     margin: 10px;
     padding: 0;
@@ -71,17 +71,17 @@ ul.navElement {
     background-color: #bbb;
     text-align: center;
 }
-li.navElement {
+li.selectorElement {
     display: inline-block;
     font: bold 18px arial, sans-serif;
     color: black;
 }
-span.navElement:hover {
+span.selectorElement:hover {
     background-color: #333;
     cursor: pointer;
     color: white;
 }
-span.navElement {
+span.selectorElement {
     display: inline-block;
     padding: 8px 12px;
 }
@@ -96,9 +96,8 @@ span.navElement {
 <body onload="main()">
 
 <div class="mainContainer">
-
 <h2><a href="https://github.com/fractalxaos/arednstat" 
-style="text-decoration:none" target="_new">
+  style="text-decoration:none" target="_new">
 KA7JLO Aredn Node Signal</a></h2>
 <h3>Last Updated</h3>
 <div class="datetime">
@@ -109,28 +108,25 @@ KA7JLO Aredn Node Signal</a></h2>
 
 <div class="rowContainer">
 <div class="currentDataCell">
-<div class="dataItems" style="text-align: right;">
-Status:<br>
-Page updates every:
+<div class="dataItems" style="text-align: center;">
+Status: <span id="status"></span><br>
+Data updates every: <span id="period"></span> minutes
 </div>
-<div class="dataItems">
-<span id="status"></span><br>
-<span id="period"></span> minutes
-</div>
+
 </div>
 </div>
 
-<span class="navContainer">
-<ul class="navElement">
-<li class="navElement">Select charts:</li>
-<li class="navElement"><span class="navElement" onclick="setChartPeriod(1)">
-24 hours</span></li>
-<li class="navElement"><span class="navElement" onclick="setChartPeriod(2)">
-4 weeks</span></li>
-<li class="navElement"><span class="navElement" onclick="setChartPeriod(3)">
-12 months</span></li>
-<li class="navElement"><span class="navElement" onclick="setChartPeriod(0)">
-Custom...</span></li>
+<span class="chartSelectors">
+<ul class="selectorElement">
+<li class="selectorElement">Select charts:</li>
+<li class="selectorElement"><span class="selectorElement"
+ onclick="setChartPeriod(1)">24 hours</span></li>
+<li class="selectorElement"><span class="selectorElement"
+ onclick="setChartPeriod(2)">4 weeks</span></li>
+<li class="selectorElement"><span class="selectorElement"
+ onclick="setChartPeriod(3)">12 months</span></li>
+<li class="selectorElement"><span class="selectorElement"
+ onclick="setChartPeriod(0)">Custom…</span></li>
 </ul>
 </span>
 
@@ -200,10 +196,7 @@ var periodElmt = document.getElementById("period");
 // Document elements
 var customChartsContainer = document.getElementById("customChartsContainer");
 var stockChartsContainer = document.getElementById("stockChartsContainer");
-var chartContainer = document.getElementsByClassName("chartContainer");
 var fmDateSelector = document.getElementById("fmDateSelector");
-var beginDate = document.getElementById("beginDate");
-var endDate = document.getElementById("endDate");
 var errorMsg = document.getElementById("errorMsg");
 
 /* Global objects */
@@ -213,7 +206,7 @@ var httpRequest = new XMLHttpRequest();
 /* Global variables */
 
 var chartPeriod = 1;
-var chartRefreshRate = 10; // chart refresh rate in minutes
+var chartRefreshRate = 0; // chart refresh rate in minutes
 
 function main() {
     /* Register call back function to process http requests */
@@ -315,14 +308,8 @@ function initializeDateSelector() {
     var dBegin = new Date(d.getFullYear(),
                d.getMonth(), d.getDate() - 1);
 
-    var strBegin = dBegin.getFullYear() + "-" + (dBegin.getMonth() + 1) + 
-                   "-" + dBegin.getDate();
-    var strEnd = dEnd.getFullYear() + "-" + (dEnd.getMonth() + 1) + 
-                 "-" + dEnd.getDate();
-
-    beginDate.valueAsDate = dBegin;
-    endDate.valueAsDate = dEnd;
-    //errorMsg.innerHTML = strBegin + " thru " + strEnd;
+    document.getElementById("beginDate").valueAsDate = dBegin;
+    document.getElementById("endDate").valueAsDate = dEnd;
 }
 
 function getCustomCharts() {
