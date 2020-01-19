@@ -1,0 +1,15 @@
+<html>
+<body>
+<h4>Ardensig - Monitor your Node's Performance</h4>
+<p>
+Ardensig enables you to view your node's received signal strength and signal to noise ration for any time period stored in the database.  Ardensig uses a "round-robin" database to store up to years worth of data.  Once you install Arednsig it begins keeping a database.  You can use the web browser to create charts of any time period after installing Arednsig.
+</p>
+<p>
+Installing an using Arednsig will give you an excellent introduction to Linux "devops".  You will learn about Linux server software systems and architecture, scripting for Internet applications, and displaying information in a web page.
+</p>
+<p>
+You can find all the required software available under open source, GNU license on this project site.  Please read the
+ <a href="docs/Arednsig-Installation.pdf">installation instructions</a> for details on how to install Arednsig.
+</p>
+</body>
+</html>
