@@ -8,14 +8,8 @@
 APP_PATH="/home/$USER/bin"
 LOG_PATH="/home/$USER/log"
 
-#AGENT_NAME="[a]rednsigAgent.py"
-#NODE_URL="http://localnode:8080/cgi-bin/signal.json"
-
 AGENT_NAME="[a]rednsigAgent.py"
-NODE_URL="http://192.168.1.30:8080/cgi-bin/signal.json"
-
-#AGENT_NAME="[a]rednsigMirrorAgent.py"
-#NODE_URL="http://73.157.139.23:7361/arednsig/dynamic/arednsigOutputData.js"
+NODE_URL="http://localnode:8080/cgi-bin/signal.json"
 
 POLLING_INTERVAL="60"
 
