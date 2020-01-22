@@ -1,11 +1,9 @@
 #!/bin/bash
 # Stop the radmon agent process and clean up environment.
 
-if [ `hostname` == "raspi2" ]; then
-  AGENT_NAME="[a]rednsigAgent.py"
-else
-  AGENT_NAME="[a]rednsigMirrorAgent.py"
-fi
+
+AGENT_NAME="[a]rednsigAgent.py"
+#AGENT_NAME="[a]rednsigMirrorAgent.py"
 
 PROCESS_ID="$(ps x | awk -v a=$AGENT_NAME '$7 ~ a {print $1}')"
 

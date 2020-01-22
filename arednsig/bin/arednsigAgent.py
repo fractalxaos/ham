@@ -11,7 +11,7 @@
 #     - conversion of data items
 #     - update a round robin (rrdtool) database with the node data
 #     - periodically generate graphic charts for display in html documents
-#     - write the processed radmon data to a JSON file for use by html
+#     - write the processed node status to a JSON file for use by html
 #       documents
 #
 # Copyright 2020 Jeff Owrey
@@ -47,7 +47,8 @@ _USER = os.environ['USER']
    ### DEFAULT AREDN NODE URL ###
 
 # ip address of the aredn node
-_DEFAULT_AREDN_NODE_URL = "http://192.168.1.30/cgi-bin/signal.json"
+#_DEFAULT_AREDN_NODE_URL = "http://localnode:8080/cgi-bin/signal.json"
+_DEFAULT_AREDN_NODE_URL = "http://192.168.1.30:8080/cgi-bin/signal.json"
 
     ### FILE AND FOLDER LOCATIONS ###
 
@@ -59,7 +60,7 @@ _CHARTS_DIRECTORY = _DOCROOT_PATH + "dynamic/"
 _OUTPUT_DATA_FILE = _DOCROOT_PATH + "dynamic/arednsigOutputData.js"
 # dummy output data file
 _DUMMY_OUTPUT_FILE = _DOCROOT_PATH + "dynamic/nodeOnline.js"
-# database that stores radmon data
+# database that stores node data
 _RRD_FILE = "/home/%s/database/arednsigData.rrd" % _USER
 
     ### GLOBAL CONSTANTS ###
@@ -74,8 +75,9 @@ _HTTP_REQUEST_TIMEOUT = 10
 _CHART_WIDTH = 600
 # standard chart height in pixels
 _CHART_HEIGHT = 150
-# source of time stamp attached to output data file
-_USE_NODE_TIMESTAMP = True
+# Set this to True only if this server is intended to relay raw
+# node data to a mirror server.
+_RELAY_SERVER = False
 
    ### GLOBAL VARIABLES ###
 
@@ -91,8 +93,6 @@ failedUpdateCount = 0
 # detected status of aredn node device
 nodeOnline = True
 
-# status of reset command to aredn node
-remoteDeviceReset = False
 # ip address of aredn node
 arednNodeUrl = _DEFAULT_AREDN_NODE_URL
 # frequency of data requests to aredn node
@@ -322,9 +322,6 @@ def writeOutputDataFile(sData, ldData):
                    to the output data file
        Returns: True if successful, False otherwise
     """
-    if verboseDebug:
-        print "write output data file: %d bytes" % len(sData)
-
     # Write file for use by html clients.  The following two
     # data items are sent to the client file.
     #    * The last database update date and time
@@ -338,18 +335,22 @@ def writeOutputDataFile(sData, ldData):
         fc.write(sDate)
         fc.close()
     except Exception, exError:
-        print "%s write output file failed: %s" % (getTimeStamp(), exError)
+        print "%s write node file failed: %s" % (getTimeStamp(), exError)
         return False
-    return True
 
-    # Write the entire node data response to the output data file.
-    try:
-        fc = open(_OUTPUT_DATA_FILE, "w")
-        fc.write(sData)
-        fc.close()
-    except Exception, exError:
-        print "%s write output file failed: %s" % (getTimeStamp(), exError)
-        return False
+    if _RELAY_SERVER:
+        # Write the entire node data response to the output data file.
+        try:
+            fc = open(_OUTPUT_DATA_FILE, "w")
+            fc.write(sData)
+            fc.close()
+        except Exception, exError:
+            print "%s write output file failed: %s" % \
+                  (getTimeStamp(), exError)
+            return False
+        if verboseDebug:
+            print "write output data file: %d bytes" % len(sData)
+
     return True
 ## end def
 
@@ -384,7 +385,7 @@ def setNodeStatus(updateSuccess):
 
 def createGraph(fileName, dataItem, gLabel, gTitle, gStart,
                 lower, upper, addTrend, autoScale):
-    """Uses rrdtool to create a graph of specified radmon data item.
+    """Uses rrdtool to create a graph of specified node data item.
        Parameters:
            fileName - name of file containing the graph
            dataItem - data item to be graphed
@@ -436,7 +437,7 @@ def createGraph(fileName, dataItem, gLabel, gTitle, gStart,
                   % trendWindow[gStart]
      
     if verboseDebug:
-        print "\n%s" % strCmd # DEBUG
+        print "%s" % strCmd # DEBUG
     
     # Run the formatted rrdtool command as a subprocess.
     try:
@@ -448,7 +449,7 @@ def createGraph(fileName, dataItem, gLabel, gTitle, gStart,
         return False
 
     if debugOption:
-        print "rrdtool graph: %s" % result,
+        print "rrdtool graph: %s\n" % result,
     return True
 
 ##end def
@@ -460,50 +461,88 @@ def generateGraphs():
     """
     autoScale = False
 
+    # The following will force creation of charts
+    # of only signal strength and S/N charts.  Note that the following
+    # data items appear constant and do not show variation with time:
+    # noise level, rx mcs, rx rate, tx mcs, tx rate.  Therefore, until
+    # these parameters are demonstrated to vary in time, there is no point
+    # in creating the charts for these data items.
+    createAllCharts = False
+
+    # 24 hour stock charts
+
     createGraph('24hr_signal', 'S', 'dBm', 
                 'RSSI\ -\ Last\ 24\ Hours', 'end-1day', 0, 0, 2, autoScale)
-    createGraph('24hr_noise', 'N', 'dBm', 
-                'Noise\ -\ Last\ 24\ Hours', 'end-1day', 0, 0, 2, autoScale)
     createGraph('24hr_snr', 'SNR', 'dB', 
                 'SNR\ -\ Last\ 24\ Hours', 'end-1day', 0, 0, 2, autoScale)
-    createGraph('24hr_rx_rate', 'RX_RATE', 'Mbps',
-                'Rx\ Rate\ -\ Last\ 24\ Hours', 'end-1day', 0, 0, 2, autoScale)
-    createGraph('24hr_tx_rate', 'TX_RATE', 'Mbps',
-                'Tx\ Rate\ -\ Last\ 24\ Hours', 'end-1day', 0, 0, 2, autoScale)
-    #createGraph('24hr_rx_mcs', 'RX_MCS', 'Index',
-    #            'Rx\ MCS\ -\ Last\ 24\ Hours', 'end-1day', 0, 0, 2, autoScale)
-    #createGraph('24hr_tx_mcs', 'TX_MCS', 'Index',
-    #            'Tx\ MCS\ -\ Last\ 24\ Hours', 'end-1day', 0, 0, 2, autoScale)
+
+    if createAllCharts:
+        createGraph('24hr_noise', 'N', 'dBm', 
+                    'Noise\ -\ Last\ 24\ Hours', 'end-1day', 0, 0, 2,
+                    autoScale)
+        createGraph('24hr_rx_rate', 'RX_RATE', 'Mbps',
+                    'Rx\ Rate\ -\ Last\ 24\ Hours', 'end-1day', 0, 0, 2,
+                    autoScale)
+        createGraph('24hr_tx_rate', 'TX_RATE', 'Mbps',
+                    'Tx\ Rate\ -\ Last\ 24\ Hours', 'end-1day', 0, 0, 2,
+                    autoScale)
+        createGraph('24hr_rx_mcs', 'RX_MCS', 'Index',
+                    'Rx\ MCS\ -\ Last\ 24\ Hours', 'end-1day', 0, 0, 2,
+                     autoScale)
+        createGraph('24hr_tx_mcs', 'TX_MCS', 'Index',
+                    'Tx\ MCS\ -\ Last\ 24\ Hours', 'end-1day', 0, 0, 2,
+                     autoScale)
+
+    # 4 week stock charts
 
     createGraph('4wk_signal', 'S', 'dBm', 
                 'RSSI\ -\ Last\ 4\ Weeks', 'end-4weeks', 0, 0, 2, autoScale)
-    createGraph('4wk_noise', 'N', 'dBm', 
-                'Noise\ -\ Last\ 4\ Weeks', 'end-4weeks', 0, 0, 2, autoScale)
     createGraph('4wk_snr', 'SNR', 'dB', 
                 'SNR\ -\ Last\ 4\ Weeks', 'end-4weeks', 0, 0, 2, autoScale)
-    createGraph('4wk_rx_rate', 'RX_RATE', 'Mbps',
-                'Rx\ Rate\ -\ Last\ 4\ Weeks', 'end-4weeks', 0, 0, 2, autoScale)
-    createGraph('4wk_tx_rate', 'TX_RATE', 'Mbps',
-                'Tx\ Rate\ -\ Last\ 4\ Weeks', 'end-4weeks', 0, 0, 2, autoScale)
-    #createGraph('4wk_rx_mcs', 'RX_MCS', 'Index',
-    #            'Rx\ MCS\ -\ Last\ 4\ Weeks', 'end-4weeks', 0, 0, 2, autoScale)
-    #createGraph('4wk_tx_mcs', 'TX_MCS', 'Index',
-    #            'Tx\ MCS\ -\ Last\ 4\ Weeks', 'end-4weeks', 0, 0, 2, autoScale)
+
+    if createAllCharts:
+        createGraph('4wk_noise', 'N', 'dBm', 
+                    'Noise\ -\ Last\ 4\ Weeks', 'end-4weeks', 0, 0, 2,
+                    autoScale)
+        createGraph('4wk_rx_rate', 'RX_RATE', 'Mbps',
+                    'Rx\ Rate\ -\ Last\ 4\ Weeks', 'end-4weeks', 0, 0, 2,
+                    autoScale)
+        createGraph('4wk_tx_rate', 'TX_RATE', 'Mbps',
+                    'Tx\ Rate\ -\ Last\ 4\ Weeks', 'end-4weeks', 0, 0, 2,
+                    autoScale)
+        createGraph('4wk_rx_mcs', 'RX_MCS', 'Index',
+                    'Rx\ MCS\ -\ Last\ 4\ Weeks', 'end-4weeks', 0, 0, 2,
+                    autoScale)
+        createGraph('4wk_tx_mcs', 'TX_MCS', 'Index',
+                    'Tx\ MCS\ -\ Last\ 4\ Weeks', 'end-4weeks', 0, 0, 2,
+                    autoScale)
+
+    # 12 month stock charts
 
     createGraph('12m_signal', 'S', 'dBm', 
                 'RSSI\ -\ Past\ Year', 'end-12months', 0, 0, 2, autoScale)
-    createGraph('12m_noise', 'N', 'dBm', 
-                'Noise\ -\ Past\ Year', 'end-12months', 0, 0, 2, autoScale)
     createGraph('12m_snr', 'SNR', 'dB', 
                 'SNR\ -\ Past\ Year', 'end-12months', 0, 0, 2, autoScale)
-    createGraph('12m_rx_rate', 'RX_RATE', 'Mbps',
-                'Rx\ Rate\ -\ Past\ Year', 'end-12months', 0, 0, 2, autoScale)
-    createGraph('12m_tx_rate', 'TX_RATE', 'Mbps',
-                'Tx\ Rate\ -\ Past\ Year', 'end-12months', 0, 0, 2, autoScale)
-    #createGraph('12m_rx_mcs', 'RX_MCS', 'Index',
-    #            'Rx\ MCS\ -\ Past\ Year', 'end-12months', 0, 0, 2, autoScale)
-    #createGraph('12m_tx_mcs', 'TX_MCS', 'Index',
-    #            'Tx\ MCS\ -\ Past\ Year', 'end-12months', 0, 0, 2, autoScale)
+
+    if createAllCharts:
+        createGraph('12m_noise', 'N', 'dBm', 
+                    'Noise\ -\ Past\ Year', 'end-12months', 0, 0, 2,
+                    autoScale)
+        createGraph('12m_rx_rate', 'RX_RATE', 'Mbps',
+                    'Rx\ Rate\ -\ Past\ Year', 'end-12months', 0, 0, 2,
+                    autoScale)
+        createGraph('12m_tx_rate', 'TX_RATE', 'Mbps',
+                    'Tx\ Rate\ -\ Past\ Year', 'end-12months', 0, 0, 2,
+                    autoScale)
+        createGraph('12m_rx_mcs', 'RX_MCS', 'Index',
+                    'Rx\ MCS\ -\ Past\ Year', 'end-12months', 0, 0, 2,
+                    autoScale)
+        createGraph('12m_tx_mcs', 'TX_MCS', 'Index',
+                    'Tx\ MCS\ -\ Past\ Year', 'end-12months', 0, 0, 2,
+                    autoScale)
+    if debugOption:
+        #print # print a blank line to improve readability when in debug mode
+        pass
 ##end def
 
 def getCLarguments():
@@ -536,7 +575,7 @@ def getCLarguments():
             index += 1
         else:
             cmd_name = sys.argv[0].split('/')
-            print "Usage: %s [-d] [-v] [-pt seconds] [-u url}" % cmd_name[-1]
+            print "Usage: %s [-d] [-v] [-p seconds] [-u url]" % cmd_name[-1]
             exit(-1)
         index += 1
 ##end def
@@ -566,12 +605,12 @@ def main():
 
     requestIntervalSeconds = dataRequestInterval * 60 # convert to seconds
 
-    chartUpdateInterval = dataRequestInterval # get charts when updating database
+    chartUpdateInterval = dataRequestInterval # get charts interval
 
     ## Exit with error if rrdtool database does not exist.
     if not os.path.exists(_RRD_FILE):
         print 'rrdtool database does not exist\n' \
-              'use createRadmonRrd script to ' \
+              'use createArednsigRrd script to ' \
               'create rrdtool database\n'
         exit(1)
  
@@ -630,7 +669,7 @@ def main():
             if result:
                 print "%s update successful:" % getTimeStamp(),
             else:
-               print "%s update failed:" % getTimeStamp(),
+                print "%s update failed:" % getTimeStamp(),
             print "%6f seconds processing time\n" % elapsedTime 
         remainingTime = requestIntervalSeconds - elapsedTime
         if remainingTime > 0.0:
