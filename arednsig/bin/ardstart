@@ -9,7 +9,8 @@ APP_PATH="/home/$USER/bin"
 LOG_PATH="/home/$USER/log"
 
 AGENT_NAME="[a]rednsigAgent.py"
-NODE_URL="http://localnode:8080/cgi-bin/signal.json"
+NODE_URL="http://192.168.1.30:8080/cgi-bin/signal.json"
+#NODE_URL="http://localnode:8080/cgi-bin/signal.json"
 
 POLLING_INTERVAL="60"
 
