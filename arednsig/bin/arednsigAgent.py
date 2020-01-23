@@ -49,13 +49,10 @@ _HOSTNAME = os.uname()[1]
 
 # set url of the aredn node
 
-if _HOSTNAME == "ka7jlo-raspi1":
-    _DEFAULT_AREDN_NODE_URL = "http://localnode:8080/cgi-bin/signal.json"
-elif _HOSTNAME == "raspi2": 
+_DEFAULT_AREDN_NODE_URL = "http://localnode:8080/cgi-bin/signal.json"
+
+if _HOSTNAME == "{my alternate host}": 
     _DEFAULT_AREDN_NODE_URL = "http://192.168.1.30:8080/cgi-bin/signal.json"
-else:
-    print "unknown host"
-    exit(1)
 
     ### FILE AND FOLDER LOCATIONS ###
 
