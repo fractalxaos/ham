@@ -48,8 +48,7 @@ _USER = os.environ['USER']
 
 # ip address of the aredn node
 
-#_DEFAULT_AREDN_NODE_URL = "http://localnode:8080/cgi-bin/signal.json"
-_DEFAULT_AREDN_NODE_URL = "http://192.168.1.30:8080/cgi-bin/signal.json"
+_DEFAULT_AREDN_NODE_URL = "http://localnode:8080/cgi-bin/signal.json"
 
     ### FILE AND FOLDER LOCATIONS ###
 
