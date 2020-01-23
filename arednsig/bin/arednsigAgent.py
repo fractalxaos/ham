@@ -43,12 +43,19 @@ import time
 import json
 
 _USER = os.environ['USER']
+_HOSTNAME = os.uname()[1]
 
    ### DEFAULT AREDN NODE URL ###
 
-# ip address of the aredn node
+# set url of the aredn node
 
-_DEFAULT_AREDN_NODE_URL = "http://localnode:8080/cgi-bin/signal.json"
+if _HOSTNAME == "ka7jlo-raspi1":
+    _DEFAULT_AREDN_NODE_URL = "http://localnode:8080/cgi-bin/signal.json"
+elif _HOSTNAME == "raspi2": 
+    _DEFAULT_AREDN_NODE_URL = "http://192.168.1.30:8080/cgi-bin/signal.json"
+else:
+    print "unknown host"
+    exit(1)
 
     ### FILE AND FOLDER LOCATIONS ###
 
@@ -604,7 +611,6 @@ def main():
     getCLarguments()
 
     requestIntervalSeconds = dataRequestInterval * 60 # convert to seconds
-
     chartUpdateInterval = dataRequestInterval # get charts interval
 
     ## Exit with error if rrdtool database does not exist.
