@@ -42,6 +42,7 @@ _DEFAULT_MENU_SETTINGS_FILE = 'ft991menu.cfg'
 _DEFAULT_MEMORY_SETTINGS_FILE = 'ft991mem.csv'
 _MAX_NUMBER_OF_MENU_ITEMS = 154
 _MAX_NUMBER_OF_MEMORY_ITEMS = 118
+_DEBUG = False
 
 # Global definitions
 
@@ -262,9 +263,12 @@ def readMemorySettings():
              contained in the list.
     """
     # Define the column headers as the first item in the list.
-    lSettings = [ 'Memory Ch,Rx Frequency,Tx Frequency,Offset,' \
-                        'Repeater Shift,Mode,Tag,Encoding,Tone,DCS,' \
-                        'Clarifier,RxClar,TxClar' ]
+    lSettings = [ 'Memory Ch,VFO_A,VFO_B,' \
+                  'RepeaterShift,Mode,Tag,Encoding,Tone,DCS,' \
+                  'Clarifier,RxClar,TxClar,PreAmp,RfAttn,NB,IFshift,' \
+                  'IFwidthIndex,ContourState,ContourFreq,' \
+                  'APFstate,APFfreq,DNRstate,DNRalgorithm,DNFstate,' \
+                  'NBFstate,NotchState,NotchFreq' ]
 
     for iLocation in range(1, _MAX_NUMBER_OF_MEMORY_ITEMS):
 
@@ -280,14 +284,31 @@ def readMemorySettings():
         dMem = ft991.getMemory(iLocation)
         tone = ft991.getCTCSS()
         dcs = ft991.getDCS()
+        preamp = ft991.getPreamp()
+        rfattn = ft991.getRfAttn()
+        nblkr = ft991.getNoiseBlanker()
+        shift = ft991.getIFshift()
+        width = ft991.getIFwidth()
+        lContour = ft991.getContour()
+        dnrstate = ft991.getDNRstate()
+        dnralgorithm = ft991.getDNRalgorithm()
+        dnfstate = ft991.getDNFstate()
+        narstate = ft991.getNARstate()
+        notch = ft991.getNotchState()
         # getMemory, above, stores data in a dictionary object.  Format
         # the data in this object, as well as, the DCS code and CTCSS
         # tone into a comma-delimited string.
-        sCsvFormat = '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s' % \
-               ( dMem['memloc'], dMem['rxfreq'], '', '', \
-                 dMem['shift'], dMem['mode'], dMem['tag'], dMem['encode'], \
+        sCsvFormat = '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,' \
+                     '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s' % \
+               (
+                 dMem['memloc'], dMem['vfoa'], '', \
+                 dMem['rpoffset'], dMem['mode'], dMem['tag'], dMem['encode'], \
                  tone, dcs, dMem['clarfreq'], dMem['rxclar'], \
-                 dMem['txclar'] )
+                 dMem['txclar'], preamp, rfattn, nblkr, shift, width, \
+                 lContour[0], lContour[1], lContour[2], lContour[3], \
+                 dnrstate, dnralgorithm, dnfstate, narstate, notch[0],
+                 notch[1]
+               )
         # Add the comma-delimited string to the list object.
         lSettings.append(sCsvFormat)
     return lSettings
@@ -301,13 +322,14 @@ def writeMemorySettings(lSettings):
     Returns: nothing
     """
     for item in lSettings:
-        # Parse the comma-delimited line and store in a dictionary object.
-        dItem = ft991.parseCsvData(item)
-        # The first item in the memory settings list are the column headers;
-        # so ignore this item.  (parseData returns None for this item.)
-        if dItem == None:
-            continue
         try:
+            # Parse the comma-delimited line and store in a dictionary object.
+            dItem = ft991.parseCsvData(item)
+            # The first item in the memory settings list are the
+            # column headers, so ignore this item.  (parseData returns
+            # None for this item.)
+            if dItem == None:
+                continue
             # Set the parameters for the memory location.
             ft991.setMemory(dItem)
             # Set current channel to memory location being set.
@@ -322,13 +344,36 @@ def writeMemorySettings(lSettings):
             # off by sending the 'RT0' and 'XT0' commands.  This situation
             # is probably due to a bug in the CAT interface.
             ft991.setRxClarifier(dItem['rxclar'])
-            ft991.setTxClarifier(dItem['txclar'])            
+            ft991.setTxClarifier(dItem['txclar'])
+            # Set Rx preamplifier state
+            ft991.setPreamp(dItem['preamp'])
+            # Set RF attenuator state
+            ft991.setRfAttn(dItem['rfattn'])
+            # Set Noise Blanker state
+            ft991.setNoiseBlanker(dItem['nblkr'])
+            # Set IF shift amount
+            ft991.setIFshift(dItem['shift'])
+            # Set IF width index
+            ft991.setIFwidth(dItem['width'])
+            # Set Contour parameters
+            ft991.setContour(dItem['contour'])
+            # Set DNR state and algorithm
+            ft991.setDNRstate(dItem['dnrstate'])
+            ft991.setDNRalgorithm(dItem['dnralgorithm'])
+            # Set DNF state
+            ft991.setDNFstate(dItem['dnfstate'])
+            # Set NAR state
+            ft991.setNARstate(dItem['narstate'])
+            # Set Notch state
+            ft991.setNotchState((dItem['notchstate'], dItem['notchfreq']))
         except Exception, e:
             print 'Memory settings restore operation failed. Most likely\n' \
                   'this is due to the backup settings file corrupted or\n' \
                   'incorrectly formatted. Look for the following error: \n'
             print e
-            exit(1)
+            raise
+            #exit(1)
+    # end for
 ## end def
 
 def readMenuSettings():

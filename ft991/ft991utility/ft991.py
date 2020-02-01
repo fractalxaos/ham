@@ -55,6 +55,9 @@ ptrDevice = None
 # CTCSS tone, and DCS code are translated to the repective FT991 parameter
 # value.
 
+# Binary On / Off state
+bState = { 'OFF':'0', 'ON':'1' }
+
 # Modulation modes
 dMode = { 'LSB':'1', 'USB':'2', 'CW':'3', 'FM':'4', 'AM':'5',
           'RTTY-LSB':'6', 'CW-R':'7', 'DATA-LSB':'8', 'RTTY-USB':'9',
@@ -113,9 +116,12 @@ dDcs = { '23':'000', '25':'001', '26':'002', '31':'003', '32':'004',
          '664':'095', '703':'096', '712':'097', '723':'098', '731':'099',
          '732':'100', '734':'101', '743':'102', '754':'103' }
 
-# Clarifier state
-dRxClar = { 'OFF':'0', 'ON':'1' }
-dTxClar = { 'OFF':'0', 'ON':'1' }
+# Preamplifier State
+dPreamp = { 'IPO':'0', 'AMP 1':'1', 'AMP 2':'2' }
+
+# Narror band filter state
+dNAR = { 'WIDE':'0', 'NARROW':'1' }
+
 
 #############################################################################
 # Define 'get' methods to encapsulate FT991 commands returning status info. #
@@ -135,24 +141,24 @@ def getMemory(memloc):
 
     # Parse memory settings string returned by the FT991
     memloc = sResult[2:5]
-    rxfreq = sResult[5:14]
+    vfoa = sResult[5:14]
     clarfreq = sResult[14:19]
     rxclar = sResult[19]
     txclar = sResult[20]
     mode = sResult[21]
     encode = sResult[23]
-    shift = sResult[26]
+    rpoffset = sResult[26]
     tag = sResult[28:40]
 
     # Store the memory settings in a dictionary object.
     dMem['memloc'] = str(int(memloc))
-    dMem['rxfreq'] = str(float(rxfreq) / 10**6)
+    dMem['vfoa'] = str(float(vfoa) / 10**6)
     dMem['clarfreq'] = str(int(clarfreq))
-    dMem['rxclar'] = dRxClar.keys()[dRxClar.values().index(rxclar)]
-    dMem['txclar'] = dTxClar.keys()[dTxClar.values().index(txclar)]
+    dMem['rxclar'] = bState.keys()[bState.values().index(rxclar)]
+    dMem['txclar'] = bState.keys()[bState.values().index(txclar)]
     dMem['mode'] = dMode.keys()[dMode.values().index(mode)]
     dMem['encode'] = dEncode.keys()[dEncode.values().index(encode)]
-    dMem['shift'] = dShift.keys()[dShift.values().index(shift)]
+    dMem['rpoffset'] = dShift.keys()[dShift.values().index(rpoffset)]
     dMem['tag'] = tag.strip()
 
     return dMem
@@ -190,10 +196,9 @@ def getRxClarifier():
     """
     # An exception will automatically be raised if incorrect data is
     # supplied - most likely a "key not found" error.
-    sCmd = 'RT;'
-    sResult = sendCommand(sCmd)
+    sResult = sendCommand('RT;')
     state = sResult[2]
-    return dRxClar.keys()[dRxClar.values().index(state)]
+    return bState.keys()[bState.values().index(state)]
 ## end def
 
 def getTxClarifier():
@@ -204,14 +209,182 @@ def getTxClarifier():
     """
     # An exception will automatically be raised if incorrect data is
     # supplied - most likely a "key not found" error.
-    sCmd = 'XT;'
-    sResult = sendCommand(sCmd)
+    sResult = sendCommand('XT;')
     state = sResult[2]
-    return dTxClar.keys()[dTxClar.values().index(state)]
+    return bState.keys()[bState.values().index(state)]
 ## end def
 
+def getPower():
+    """
+    Description:  Gets the transmit power level.
+    Parameters: none
+    Returns: string containing the power in Watts
+    """
+    sResult = sendCommand('PC;')
+    return sResult[2:5]
+##end def
+
+def getPreamp():
+    """
+    Description:  Gets the state of the Rx preamplifier.
+    Parameters: none
+    Returns: string containing the state of the preamplifier.
+    """
+    # Get result of PA0 command
+    sResult = sendCommand('PA0;')
+    ipo = sResult[3:4]
+    return dPreamp.keys()[dPreamp.values().index(ipo)]
+## end def
+
+def getRfAttn():
+    """
+    Description:  Gets the state of the Rf attenuator.
+    Parameters: none
+    Returns: string containing the state of the Rf attenuator.
+    """
+    sResult = sendCommand('RA0;')
+    if sResult == '?;':
+        return 'NA'
+    attn = sResult[3:4]
+    return bState.keys()[bState.values().index(attn)]
+## end def
+
+def getNoiseBlanker():
+    """
+    Description:  Gets the state of the noise blanker.
+    Parameters: none
+    Returns: string containing the state of the noise blanker.
+    """
+    sResult = sendCommand('NB0;')
+    nb = sResult[3:4]
+    return bState.keys()[bState.values().index(nb)]
+## end def
+
+def getIFshift():
+    """
+    Description:  Gets the value in Hz of IF shift.
+    Parameters: none
+    Returns: string containing the amount of shift.
+    """
+    if getRfAttn() == 'NA':
+        return 'NA'
+    sResult = sendCommand('IS0;')
+    if sResult == '?;':
+        return 'NA'
+    shift = int(sResult[3:8])
+    return shift
+## end def
+
+def getIFwidth():
+    """
+    Description:  Gets the index of the width setting.  IF width settings
+                  vary according to the modulation type and bandwidth.
+                  Therefore only the index gets saved.
+    Parameters: none
+    Returns: string containing the amount index number.
+    """
+    if getRfAttn() == 'NA':
+        return 'NA'
+    sResult = sendCommand('SH0;')
+    width = int(sResult[3:5])
+    return width
+## end def
+
+def getContour():
+    """
+    Description:  Gets the four contour parameters.
+    Parameters: none
+    Returns: list object containing the four parameters.
+    """
+    if getRfAttn() == 'NA':
+        return [ 'NA', 'NA', 'NA', 'NA' ]
+    lContour = []
+
+    sResult = sendCommand('CO00;')
+    lContour.append(int(sResult[4:8]))
+
+    sResult = sendCommand('CO01;')
+    lContour.append(int(sResult[4:8]))
+
+    sResult = sendCommand('CO02;')
+    lContour.append(int(sResult[4:8]))
+
+    sResult = sendCommand('CO03;')
+    lContour.append(int(sResult[4:8]))
+    return lContour
+## end def
+
+def getDNRstate():
+    """
+    Description:  Gets digital noise reduction (DNR) state.
+    Parameters: none
+    Returns: 0 = OFF or 1 = ON
+    """
+    sResult = sendCommand('NR0;')
+    if sResult == '?;':
+        return 'NA'
+    state = sResult[3:4]
+    return bState.keys()[bState.values().index(state)]
+## end def
+
+def getDNRalgorithm():
+    """
+    Description:  Gets the algorithm used by the DNR processor.
+    Parameters: none
+    Returns: a number between 1 and 16 inclusive
+    """
+    sResult = sendCommand('RL0;')
+    algorithm = int(sResult[3:5])
+    return algorithm
+## end def
+
+def getDNFstate():
+    """
+    Description:  Gets digital notch filter (DNF) state.
+    Parameters: none
+    Returns: 0 = OFF or 1 = ON
+    """
+    sResult = sendCommand('BC0;')
+    if sResult == '?;':
+        return 'NA'
+    state = sResult[3:4]
+    return bState.keys()[bState.values().index(state)]
+## end def
+
+def getNARstate():
+    """
+    Description:  Gets narrow/wide filter (NAR) state.
+    Parameters: none
+    Returns: 0 = Wide or 1 = Narrow
+    """     
+    sResult = sendCommand('NA0;')
+    if sResult == '?;':
+        return 'NA'
+    state = sResult[3:4]
+    return dNAR.keys()[dNAR.values().index(state)]
+## end def
+
+def getNotchState():
+    """
+    Description:  Gets the notch filter state and setting.
+    Parameters: none
+    Returns: a tuple containing state and frequency
+             state = 0 (OFF) or 1 (ON)
+             frequency = number between 1 and 320 (x 10 Hz)
+    """     
+    sResult = sendCommand('BP00;')
+    if sResult == '?;':
+        return ('NA', 'NA')
+    state = sResult[6:7]
+    state = bState.keys()[bState.values().index(state)]
+    sResult = sendCommand('BP01;')
+    freq = int(sResult[4:7])
+    return (state, freq)
+## end def
+
+
 #############################################################################
-# Define 'set' functions to encapsulate the various FT991 CAT commands.     #
+# Define 'set' methods to encapsulate the various FT991 CAT commands.       #
 #############################################################################
 
 def setMemory(dMem):
@@ -221,13 +394,13 @@ def setMemory(dMem):
                        defined:
 
                        memloc - the memory location to be written
-                       rxfreq - receive frequency of VFO-A in MHz
+                       vfoa - receive frequency of VFO-A in MHz
                        clarfreq - clarifier frequency and direction
                        rxclar - receive clarifier state
                        txclar - transmit clarifier state
                        mode - the modulation mode
                        encode - the tone or DCS encoding mode
-                       shift - the direction of the repeater shift
+                       rpoffset - the direction of the repeater shift
                        tag - a label for the memory location
 
     Returns: nothing
@@ -243,7 +416,7 @@ def setMemory(dMem):
     sCmd += '%0.3d' % iLocation
 
     # Validate and append the vfo-a frequency data.
-    iRxfreq = int(float(dMem['rxfreq']) * 1E6) # vfo-a frequency in Hz
+    iRxfreq = int(float(dMem['vfoa']) * 1E6) # vfo-a frequency in Hz
     if iRxfreq < 0.030E6 or iRxfreq > 450.0E6:
         raise Exception('VFO-A frequency must be between 30 kHz and ' \
                         '450 MHz, inclusive.')
@@ -259,13 +432,13 @@ def setMemory(dMem):
     # The following commands will automatically raise an exception if
     # incorrect data is supplied.  The exception will be a dictionary
     # object "key not found" error.
-    sCmd += dRxClar[dMem['rxclar']]
-    sCmd += dTxClar[dMem['txclar']]
+    sCmd += bState[dMem['rxclar']]
+    sCmd += bState[dMem['txclar']]
     sCmd += dMode[dMem['mode']]
     sCmd += '0'
     sCmd += dEncode[dMem['encode']]
     sCmd += '00'
-    sCmd += dShift[dMem['shift']]
+    sCmd += dShift[dMem['rpoffset']]
     sCmd += '0'
     sTag = dMem['tag']
 
@@ -342,7 +515,7 @@ def setRxClarifier(state='OFF'):
     """
     # An exception will automatically be raised if incorrect data is
     # supplied - most likely a "key not found" error.
-    sCmd = 'RT%s;' % dRxClar[state]
+    sCmd = 'RT%s;' % bState[state]
     # Send the completed command.
     sResult = sendCommand(sCmd)
     if sResult == '?;':
@@ -358,7 +531,7 @@ def setTxClarifier(state='OFF'):
     """
     # An exception will automatically be raised if incorrect data is
     # supplied - most likely a "key not found" error.
-    sCmd = 'XT%s;' % dTxClar[state]
+    sCmd = 'XT%s;' % bState[state]
     # Send the completed command.
     sResult = sendCommand(sCmd)
     if sResult == '?;':
@@ -386,6 +559,182 @@ def setMemoryLocation(iLocation):
         return str(iLocation)
 ## end def
 
+def setPreamp(state='IPO'):
+    """
+    Description:  Sends a formatted PA command that sets the preamplifier
+                  state.
+    Parameters: state - string 'IPO', 'AMP 1', 'AMP 2'
+    Returns: nothing
+    """
+    # An exception will automatically be raised if incorrect data is
+    # supplied - most likely a "key not found" error.
+    sCmd = 'PA0%s;' % dPreamp[state]
+    # Send the completed command.
+    sResult = sendCommand(sCmd)
+    if sResult == '?;':
+        raise Exception('setPreAmp error')
+## end def
+
+def setRfAttn(state='NA'):
+    """
+    Description:  Sends a formatted PA command that sets the RF attenuator
+                  state.  Note that attempting to write or read the
+                  attenuator for a VHF or UHF band results in an error.
+                  Hence the addition of a state 'NA' for NOT APPLICABLE.
+    Parameters: state - string 'OFF', 'ON', 'NA'
+    Returns: nothing
+    """
+    if state == 'NA':
+        return
+    sCmd = 'RA0%s;' % bState[state]
+    sResult = sendCommand(sCmd)
+    if sResult == '?;':
+        raise Exception('setRfAttn error')
+## end def
+
+def setNoiseBlanker(state='OFF'):
+    """
+    Description:  Sends a formatted NB command that sets the noise blanker
+                  state.
+    Parameters: state - string 'OFF', 'ON'
+    Returns: nothing
+    """
+    sCmd = 'NB0%s;' % bState[state]
+    sResult = sendCommand(sCmd)
+    if sResult == '?;':
+        raise Exception('setNoiseBlanker error')
+## end def
+
+def setIFshift(shift='NA'):
+    """
+    Description:  Sends a formatted IS command that sets the amount of
+                  IF shift.
+    Parameters: state - string 'OFF', 'ON'
+    Returns: nothing
+    """
+    if shift == 'NA':
+        return
+    shift = int(shift)
+    if abs(shift) > 1200:
+        raise Exception('setIFshift error: data out of bounds')
+    sCmd = 'IS0%0+5d;' % shift
+    sResult = sendCommand(sCmd)
+    if sResult == '?;':
+        raise Exception('setIFshift error')
+## end def
+
+def setIFwidth(index='NA'):
+    """
+    Description:  Sends a formatted SH command that sets the IF width
+                  IF shift.
+    Parameters: index of shift - value between 0 and 21, inclusive
+    Returns: nothing
+    """
+    if index == 'NA':
+        return
+    index = int(index)
+    if index < 0 or index > 21:
+        raise Exception('setIFwidth error: data out of bounds')
+    sCmd = 'SH0%02d;' % index
+    sResult = sendCommand(sCmd)
+    if sResult == '?;':
+        raise Exception('setIFwidth error')
+## end def
+
+def setContour(lParams):
+    """
+    Description:  Sends a formatted CO command that sets contour parameters
+    Parameters: lParams - list object containing the parameters
+    Returns: nothing
+    """
+    if lParams[0] == 'NA':
+        return
+
+    for inx in range(4):
+        sCmd = 'CO0%d%04d' % (inx, int(lParams[inx]))
+        sResult = sendCommand(sCmd)
+        if sResult == '?;':
+            raise Exception('setContour error')
+## end def
+
+def setDNRstate(state = 'NA'):
+    """
+    Description:  Sets the state (on or off) of the digital noise
+                  reduction (DNR) processor.
+    Parameters:   State = 0 (OFF) or 1 (ON)
+    Returns: nothing
+    """
+    if state == 'NA':
+        return
+    sCmd = 'NR0%01d' % int(bState[state])
+    sResult = sendCommand(sCmd)
+    if sResult == '?;':
+        raise Exception('setDNR error')
+## end def
+
+def setDNRalgorithm(algorithm = 1):
+    """
+    Description:  Sets the algorithm used by the digital noise
+                  reduction (DNR) processor.
+    Parameters:   algorithm - a number between 1 and 16 inclusive
+    Returns: nothing
+    """
+    sCmd = 'RL0%02d' % int(algorithm)
+    sResult = sendCommand(sCmd)
+    if sResult == '?;':
+        raise Exception('setDNR error')
+## end def
+
+def setDNFstate(state = 'NA'):
+    """
+    Description:  Sets the state (on or off) of the digital notch
+                  filter (DNF) processor.
+    Parameters:   State = 0 (OFF) or 1 (ON)
+    Returns: nothing
+    """
+    if state == 'NA':
+        return
+    sCmd = 'BC0%01d' % int(bState[state])
+    sResult = sendCommand(sCmd)
+    if sResult == '?;':
+        raise Exception('setDNF error')
+## end def
+
+def setNARstate( state = 'NA'):
+    """
+    Description:  Gets narrow/wide filter (NAR) state.
+    Parameters: none
+    Returns: 0 = Wide or 1 = Narrow
+    """
+    if state == 'NA':
+        return
+    sCmd = 'NA0%s' % dNAR[state]
+    sResult = sendCommand(sCmd)
+    if sResult == '?;':
+        raise Exception('setNAR error')
+## end def
+
+def setNotchState( state = ('NA', 'NA') ):
+    """
+    Description:  Gets the notch filter state and setting.
+    Parameters: none
+    Returns: a tuple containing state and frequency
+             state = 0 (OFF) or 1 (ON)
+             frequency = number between 1 and 320 (x 10 Hz)
+    """
+    if state[0] == 'NA':
+        return
+    sCmd = 'BP0000%s' % bState[state[0]]
+    sResult = sendCommand(sCmd)
+    if sResult == '?;':
+        raise Exception('setNotch error')
+    sCmd = 'BP01%03d' % int(state[1])
+    sResult = sendCommand(sCmd)
+    if sResult == '?;':
+        raise Exception('setNotch error')
+## end def
+
+
 #############################################################################
 # Helper functions to assist in various tasks.                              #
 #############################################################################
@@ -404,18 +753,29 @@ def parseCsvData(sline):
         return None
     # Store the parsed items with the appropriate key in the dictionary object.
     dChan['memloc'] = lchan[0]
-    dChan['rxfreq'] = lchan[1]
-    dChan['txfreq'] = lchan[2]
-    dChan['offset'] = lchan[3]
-    dChan['shift'] = lchan[4]
-    dChan['mode'] = lchan[5]
-    dChan['tag'] = lchan[6]
-    dChan['encode'] = lchan[7]
-    dChan['tone'] = lchan[8]
-    dChan['dcs'] = lchan[9]
-    dChan['clarfreq'] = lchan[10]
-    dChan['rxclar'] = lchan[11]
-    dChan['txclar'] = lchan[12]
+    dChan['vfoa'] = lchan[1]
+    dChan['vfob'] = lchan[2]
+    dChan['rpoffset'] = lchan[3]
+    dChan['mode'] = lchan[4]
+    dChan['tag'] = lchan[5]
+    dChan['encode'] = lchan[6]
+    dChan['tone'] = lchan[7]
+    dChan['dcs'] = lchan[8]
+    dChan['clarfreq'] = lchan[9]
+    dChan['rxclar'] = lchan[10]
+    dChan['txclar'] = lchan[11]
+    dChan['preamp'] = lchan[12]
+    dChan['rfattn'] = lchan[13]
+    dChan['nblkr']  = lchan[14]
+    dChan['shift'] = lchan[15]
+    dChan['width'] = lchan[16]
+    dChan['contour'] = [ lchan[17], lchan[18], lchan[19], lchan[20] ]
+    dChan['dnrstate'] = lchan[21]
+    dChan['dnralgorithm'] = lchan[22]
+    dChan['dnfstate'] = lchan[23]
+    dChan['narstate'] = lchan[24]
+    dChan['notchstate'] = lchan[25]
+    dChan['notchfreq'] = lchan[26]
     return dChan # return the dictionary object
 ## end def
 
@@ -561,7 +921,7 @@ def main():
     # Instantiate serial connection to FT991
     begin()
     # Set and receive a memory channel
-    dMem = {'memloc': '98', 'rxfreq': '146.52', 'shift': 'OFF', \
+    dMem = {'memloc': '98', 'vfoa': '146.52', 'shift': 'OFF', \
             'mode': 'FM', 'encode': 'TONE ENC', 'tag': 'KA7JLO', \
             'clarfreq': '1234', 'rxclar': 'ON', 'txclar': 'ON' \
            }
@@ -575,7 +935,7 @@ def main():
     getMemory(int(dMem['memloc']))
     print
     # Set and receive a memory channel
-    dMem = {'memloc': '99', 'rxfreq': '146.52', 'shift': 'OFF', \
+    dMem = {'memloc': '99', 'vfoa': '146.52', 'shift': 'OFF', \
             'mode': 'FM', 'encode': 'OFF', 'tag': 'KA7JLO', \
             'clarfreq': '0', 'rxclar': 'OFF', 'txclar': 'OFF' \
            }
