@@ -30,6 +30,9 @@
 #
 # Revision History
 #   * v20 released 11 Jan 2020 by J L Owrey; first release
+#   * v21 released 13 Feb 2020 by J L Owrey; fixed bug occuring when node
+#     powers on and signal data memory is empty.  Data points with N/A data
+#     are discarded.
 #
 #2345678901234567890123456789012345678901234567890123456789012345678901234567890
 
@@ -51,7 +54,7 @@ _HOSTNAME = os.uname()[1]
 
 _DEFAULT_AREDN_NODE_URL = "http://localnode:8080/cgi-bin/signal.json"
 
-if _HOSTNAME == "{my alternate host}": 
+if _HOSTNAME == "raspi2": 
     _DEFAULT_AREDN_NODE_URL = "http://192.168.1.30:8080/cgi-bin/signal.json"
 
     ### FILE AND FOLDER LOCATIONS ###
@@ -222,7 +225,8 @@ def parseNodeData(sData, ldData):
         ldTmp = json.loads(sData[1:-1])
         ldTmp = ldTmp[-iTrail:]
         if len(ldTmp) != iTrail:
-            raise Exception("truncated list")
+            #raise Exception("truncated list")
+            pass
     except Exception, exError:
         print "%s parse failed: %s" % (getTimeStamp(), exError)
         return False
@@ -247,7 +251,9 @@ def convertData(ldData):
     #  u'label': u'01/10/2020 22:17:01', u'rx_rate': u'130',
     #  u'y': [-48, -95], u'x': 1578694621000, u'tx_rate': u'130'}
     #
-    for item in ldData:
+    index = 0
+    while index < len(ldData):
+        item = ldData[index]
         try:
             item['time'] = int(item.pop('x')) / 1000
             item['signal'] = int(item['y'][0])
@@ -260,12 +266,21 @@ def convertData(ldData):
             item.pop('y')
             item.pop('label')
         except Exception, exError:
-            print "%s convert data failed: %s" % (getTimeStamp(), exError)
-            return False
+            print "%s convert data item failed: %s" % (getTimeStamp(), exError)
+            print "discarding %s" % item
+            #return False
+            ldData.pop(index)
+        else:
+            index += 1
     ##end for
-    if verboseDebug:
-        print "convert data successful"
-    return True
+
+    if len(ldData) > 0:
+        if verboseDebug:
+            print "convert data successful"
+        return True
+    else:
+        print "convert data failed"
+        return False
 ##end def
 
 def updateDatabase(ldData):
