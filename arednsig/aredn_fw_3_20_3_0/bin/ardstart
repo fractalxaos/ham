@@ -1,0 +1,28 @@
+#!/bin/bash
+#
+# The aredn node url can look something like http://192.168.1.155, or
+# something linke http://radiationMonitor.domain.com depending on
+# whether your local network uses a domain name server.
+#
+
+APP_PATH="/home/$USER/bin"
+LOG_PATH="/home/$USER/log"
+
+AGENT_NAME="[a]rednsigAgent.py"
+NODE_URL="http://localnode:8080/cgi-bin/signal.json"
+
+POLLING_INTERVAL="1"
+
+PROCESS_ID="$(ps x | awk -v a=$AGENT_NAME '$7 ~ a {print $1}')"
+
+if [ -n "$PROCESS_ID" ]; then
+  if [ "$1" != "-q" ]; then
+    printf "arednsig agent running [%s]\n" $PROCESS_ID
+  fi
+else
+  printf "starting up arednsig agent\n"
+  cd $APP_PATH
+  $(./$AGENT_NAME -u $NODE_URL -p $POLLING_INTERVAL >> \
+ $LOG_PATH/arednsigAgent.log 2>&1 &)
+fi
+
