@@ -1,0 +1,16 @@
+#!/bin/bash
+# Stop the radmon agent process and clean up environment.
+
+
+AGENT_NAME="[a]rednsigAgent.py"
+#AGENT_NAME="[a]rednsigMirrorAgent.py"
+
+#AGENT_NAME="[a]rednsigMirrorAgent.py"
+PROCESS_ID="$(ps x | awk -v a=$AGENT_NAME '$7 ~ a {print $1}')"
+
+if [ -n "$PROCESS_ID" ]; then
+  printf "killing arednsig agent [%s]\n" $PROCESS_ID
+  kill $PROCESS_ID
+else
+  echo arednsig agent not running
+fi
