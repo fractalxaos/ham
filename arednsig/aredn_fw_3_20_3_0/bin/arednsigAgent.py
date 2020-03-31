@@ -33,6 +33,9 @@
 #   * v21 released 13 Feb 2020 by J L Owrey; fixed bug occuring when node
 #     powers on and signal data memory is empty.  Data points with N/A data
 #     are discarded.
+#   * v22 released 31 Mar 2020 by J L Owrey; upgraded for compatibility with
+#     Aredn firmware version 3.20.3.0.  This agent now downloads the node's
+#     status page and parsed the signal data from the html.
 #
 #2345678901234567890123456789012345678901234567890123456789012345678901234567890
 
