@@ -17,7 +17,6 @@ Currently two versions of the Aredn firmware are supported by the Arednsig appli
 <li>3.19.3.0</li>
 <li>3.20.3.0</li>
 </ul>
-Please download the software from the appropriate folder.
 </p> 
 </body>
 </html>
