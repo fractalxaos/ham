@@ -4,7 +4,7 @@
 -->
 <html>
 <head>
-<title>Node Signal</title>
+<title>AREDN Node - Signal Status</title>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
@@ -98,7 +98,7 @@ span.selectorElement {
 <div class="mainContainer">
 <h2><a href="https://github.com/fractalxaos/ham/tree/master/arednsig" 
   style="text-decoration:none" target="_new">
-KA7JLO AREDN<sup>&#174;</sup> Node Signal</a></h2>
+AREDN<sup>&#174;</sup> Node Signal</a></h2>
 <h3>Last Updated</h3>
 <div class="datetime">
 <span id="date"></span>
@@ -110,7 +110,7 @@ KA7JLO AREDN<sup>&#174;</sup> Node Signal</a></h2>
 <div class="currentDataCell">
 <div class="dataItems" style="text-align: center;">
 Status: <span id="status"></span><br>
-Data updates every: <span id="period"></span> minutes
+Charts update every: <span id="period"></span> minutes
 </div>
 
 </div>
@@ -283,9 +283,9 @@ function displayData(dataItem) {
     statusElmt.style.color = "green";
 
     chartRefreshRate = dataItem.period;
-    periodElmt.innerHTML = chartRefreshRate;
-    setInterval(getNodeData, 60000 * chartRefreshRate);
-    setInterval(getNodeCharts, 60000 * chartRefreshRate);
+    periodElmt.innerHTML = chartRefreshRate / 60;
+    setInterval(getNodeData, 1000 * chartRefreshRate);
+    setInterval(getNodeCharts, 1000 * chartRefreshRate);
 }
 
 function displayOfflineStatus() {

@@ -70,9 +70,9 @@ _RRD_FILE = "/home/%s/database/arednsigData.rrd" % _USER
 
     ### GLOBAL CONSTANTS ###
 
-# interval in seconds between data requests to the aredn node
+# AREDN node data request interval in seconds
 _DEFAULT_DATA_REQUEST_INTERVAL = 60
-# chart update interval in minutes
+# chart update interval in seconds
 _CHART_UPDATE_INTERVAL = 600
 
 # number seconds to wait for a response to HTTP request
