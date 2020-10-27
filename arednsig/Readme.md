@@ -9,7 +9,7 @@ Installing and using Arednsig will give you an excellent introduction to Linux "
 </p>
 <p>
 You can find all the required software available under open source, GNU license on this project site.  Please read the
- <a href="Arednsig-Installation.pdf">installation instructions</a> for details on how to install Arednsig.
+ <a href="arednsig-installation.pdf">installation instructions</a> for details on how to install Arednsig.
 </p>
 <p>
 Currently two versions of the Aredn firmware are supported by the Arednsig application
