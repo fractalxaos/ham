@@ -1,0 +1,21 @@
+#!/bin/bash
+#
+
+APP_PATH="/home/$USER/bin"
+LOG_PATH="/home/$USER/log"
+
+AGENT_NAME="[n]pwAgent.py"
+
+PROCESS_ID="$(ps x | awk -v a=$AGENT_NAME '$7 ~ a {print $1}')"
+
+if [ -n "$PROCESS_ID" ]; then
+  if [ "$1" != "-q" ]; then
+    printf "node power agent running [%s]\n" $PROCESS_ID
+  fi
+else
+  printf "starting up node agent\n"
+  cd $APP_PATH
+  $(./$AGENT_NAME >> \
+ $LOG_PATH/npwAgent.log 2>&1 &)
+fi
+

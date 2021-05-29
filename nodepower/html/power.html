@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<!-- Courtesy ruler for editing this file
+12345678901234567890123456789012345678901234567890123456789012345678901234567890
+-->
+<html>
+<head>
+<title>Node Power</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="shortcut icon" href="/favicon.png" type="image/x-icon" />
+<style>
+body {
+    background-image: url("static/chalk.jpg");
+}
+h2 {
+    font: bold 24px arial, sans-serif;
+}
+h4 {
+    font: bold 16px arial, sans-serif;
+}
+p {
+    font: normal 14px arial, sans-serif;
+}
+#mainContainer {
+    width: 740px;
+    text-align: center;
+    margin: auto;
+}
+#datetime {
+    padding: 10px;
+    font: bold 22px arial, sans-serif;
+    /*border: 1px solid black;*/
+}
+#notes {
+    font: 17px arial, sans-serif;
+    text-align: left;
+    padding: 10px;
+}
+.rowContainer {
+    display: table;
+    width: 100%;
+    /*border: 1px solid black;*/
+}
+.currentDataCell {
+    width: 50%;
+    padding: 10px;
+    font: bold 18px arial, sans-serif;
+    text-align: center;
+    display: table-cell;
+    vertical-align: middle;
+    /*border: 1px solid black;*/
+}
+.dataItems {
+    padding: 2px;
+    text-align: left;
+    line-height: 130%;
+    display: inline-block;
+    vertical-align: middle;
+    /*border: 1px solid black;*/
+}
+.chartContainer {
+    padding: 2px;
+    /*border: 1px solid black;*/
+}
+img.chart {
+    width: 100%;
+}
+span.chartNav {
+    margin: auto;
+}
+ul.chartNav {
+    list-style-type: none;
+    margin: 10px;
+    padding: 0;
+    overflow: hidden;
+    background-color: #bbb;
+    text-align: center;
+}
+li.chartNav {
+    display: inline-block;
+    font: bold 18px arial, sans-serif;
+    color: black;
+}
+text.chartNav:hover {
+    background-color: #333;
+    cursor: pointer;
+    color: white;
+}
+text.chartNav {
+    display: inline-block;
+    padding: 8px 12px;
+}
+</style>
+</head>
+
+<body onload="main()">
+
+<div id="mainContainer">
+
+<h2><a href="https://github.com/fractalxaos/ham/tree/master/nodepower" 
+style="text-decoration:none" target="_new">
+Node Power</a></h2>
+<h4>YOUR NODE DESCRIPTION AND CALL SIGN</h4>
+
+<div style="width:60%; text-align:left; font:14px arial, sans-serif;">
+This web page shows the power consumption of the above node.  Charts below
+provide a historical glimpse of node power consumption, battery and ambient
+temperatures.
+</div>
+
+<div id="datetime">
+<text id="date"></text>
+&nbsp;&nbsp;
+<text id="time"></text>
+</div>
+
+<div class="rowContainer">
+
+<div class="currentDataCell">
+<div class="dataItems">
+Current:<br>
+Voltage:<br>
+Power:
+</div>
+<div class="dataItems" style="width: 30%;">
+<text id="current"></text> mA<br>
+<text id="voltage"></text> V<br>
+<text id="power"></text> mW
+</div>
+</div>
+
+<div class="currentDataCell">
+<div class="dataItems">
+Battery Temperature:<br>
+Ambient Temperature:
+</div>
+<div class="dataItems"  style="width: 30%;">
+<text id="battemp"></text> &#8451;<br>
+<text id="ambtemp"></text> &#8451;<br>
+</div>
+</div>
+</div>
+
+<div class="rowContainer">
+<div class="currentDataCell">
+<div class="dataItems">
+Charts update every
+</div>
+<div class="dataItems">
+<text id="period"></text> minutes.<br>
+</div>
+</div>
+<div class="currentDataCell">
+<div class="dataItems">
+Status:
+</div>
+<div class="dataItems">
+<text id="status"></text><br>
+</div>
+</div>
+</div>
+
+<span class="chartNav">
+<ul class="chartNav">
+<li class="chartNav">Select charts:</li>
+<li class="chartNav"><text class="chartNav" onclick="setChartPeriod(1)">
+24 hours</text></li>
+<li class="chartNav"><text class="chartNav" onclick="setChartPeriod(2)">
+4 weeks</text></li>
+<li class="chartNav"><text class="chartNav" onclick="setChartPeriod(3)">
+12 months</text></li>
+</ul>
+</span>
+<br>
+
+<div class="chartContainer">
+<img class="chart" id="current_g">
+</div>
+
+<div class="chartContainer">
+<img class="chart" id="voltage_g">
+</div>
+
+<div class="chartContainer">
+<img class="chart" id="power_g">
+</div>
+
+<div class="chartContainer">
+<img class="chart" id="battemp_g">
+</div>
+
+<div class="chartContainer">
+<img class="chart" id="ambtemp_g">
+</div>
+
+<div id="notes">
+<b>NOTES:</b>
+<ul>
+<li>Node sensor project plans and software available at
+<a href="https://github.com/fractalxaos/ham/tree/master/nodepower" target="_new">
+<i>Github.com</i>
+</a>.</li>
+<li>Project plans include detailed instructions on how to use a Raspberry
+    Pi Zero to add power bus and battery temperature monitoring 
+    for your AREDN node.</li>
+<li>Displayed data may be delayed by as much as 2 seconds from
+ time of actual measurement.</li>
+<li>Project sponsored by
+ <a href=https://willamettevalleymesh.net/ TARGET="_NEW">
+ <i>Willamette Valley Mesh Network</i></a>, Salem, Oregon.</li>
+<li>Designed by Jeff Owrey, KA7JLO, 2021.</li>
+<li> Released under Creative Commons License.</li>
+</ul>
+</div><br><br>
+</div>
+
+<script>
+
+/* Global constants */
+
+var sensorDataUrl = "dynamic/powerData.js";
+
+/* Global DOM objects */
+
+// Chart Elements
+var current_g = document.getElementById("current_g");
+var voltage_g = document.getElementById("voltage_g");
+var power_g = document.getElementById("power_g");
+var battemp_g = document.getElementById("battemp_g");
+var ambtemp_g = document.getElementById("ambtemp_g");
+
+// Text Elements
+var date_t = document.getElementById("date");    
+var time_t = document.getElementById("time");    
+var current_t = document.getElementById("current");    
+var voltage_t = document.getElementById("voltage");    
+var power_t = document.getElementById("power");    
+var battemp_t = document.getElementById("battemp");    
+var ambtemp_t = document.getElementById("ambtemp");    
+var status_t = document.getElementById("status");
+var period_t = document.getElementById("period");    
+
+/* Global objects */
+
+var httpRequest = new XMLHttpRequest();
+
+/* Global variables */
+
+var graphPeriod;
+
+function main() {
+    // Register call back function to process client http requests
+    httpRequest.onreadystatechange = function() {
+        if (httpRequest.readyState == 4 && httpRequest.status == 200) {
+            var dataArray = JSON.parse(httpRequest.responseText);
+            displayData(dataArray[0]);
+        } else if (httpRequest.readyState == 4 && httpRequest.status == 404) {
+            displayOfflineStatus();
+        }
+    };
+    httpRequest.ontimeout = function(e) {
+        displayOfflineStatus();
+    };
+
+    getSensorData();
+    graphPeriod = 1;
+    getSensorGraphs();
+    setInterval(getSensorData, 2000);
+    setInterval(getSensorGraphs, 600000);
+}
+
+function getSensorData() {
+    httpRequest.open("GET", sensorDataUrl, true);
+    httpRequest.timeout = 3000;
+    httpRequest.send();
+}
+
+function setChartPeriod(n) {
+    graphPeriod = n;
+    getSensorGraphs();
+}
+
+function getSensorGraphs() {
+    var d = new Date;
+    var pfx;
+
+    switch(graphPeriod) {
+        case 1:
+            pfx = "24hr_";
+            break;
+        case 2:
+            pfx = "4wk_";
+            break;
+       case 3:
+            pfx = "12m_";
+            break;
+    }
+    current_g.src = "dynamic/" + pfx + "current.png?ver=" + d.getTime();
+    voltage_g.src = "dynamic/" + pfx + "voltage.png?ver=" + d.getTime();
+    power_g.src = "dynamic/" + pfx + "power.png?ver=" + d.getTime();
+    battemp_g.src = "dynamic/" + pfx + "battemp.png?ver=" + d.getTime();
+    ambtemp_g.src = "dynamic/" + pfx + "ambtemp.png?ver=" + d.getTime();
+}
+
+function displayData(dataItem) {
+    displayTime(dataItem);
+    current_t.innerHTML = 
+        (Number(dataItem.current).toFixed(2)).toString();
+    voltage_t.innerHTML = 
+        (Number(dataItem.voltage).toFixed(2)).toString();
+    power_t.innerHTML = 
+        (Number(dataItem.power).toFixed(2)).toString();
+    battemp_t.innerHTML = 
+        (Number(dataItem.battemp).toFixed(2)).toString();
+    ambtemp_t.innerHTML = 
+        (Number(dataItem.ambtemp).toFixed(2)).toString();
+    period_t.innerHTML = dataItem.period / 60;
+    status_t.innerHTML = "online";
+    status_t.style.color = "green";
+}
+
+function displayOfflineStatus() {
+    displayHostTime();
+    current_t.innerHTML = "";
+    voltage_t.innerHTML = "";
+    power_t.innerHTML = "";
+    battemp_t.innerHTML = "";
+    ambtemp_t.innerHTML = "";
+    period_t.innerHTML = " -n/a- ";
+    status_t.innerHTML = "offline";
+    status_t.style.color = "red";
+}
+
+function displayTime(dataItem) {
+    var date, time, hourminute;
+    var localDateObj, localTimeZone, timeZoneShift;
+    date = dataItem.time.split(" ")[0];
+    time = dataItem.time.split(" ")[1];
+    hourminute = time.split(":")[0] + ":" + time.split(":")[1];
+    localDateObj = new Date();
+    localTimeZone = localDateObj.getTimezoneOffset() / 60;
+    if (Math.sign(localTimeZone)) {
+        timeZoneShift = "-";
+    } else {
+        timeZoneShift = "+"
+    }
+    date_t.innerHTML = date;    
+    time_t.innerHTML = hourminute + "  <small>(UTC" + timeZoneShift +
+                       localTimeZone + ")</small>";
+}
+
+function displayHostTime() {
+    var d = new Date();
+    var localTimeZone, timeZoneShift;
+
+    localTimeZone = d.getTimezoneOffset() / 60;
+    if (Math.sign(localTimeZone)) {
+       timeZoneShift = "-";
+    } else {
+       timeZoneShift = "+"
+    }
+    date_t.innerHTML = d.getMonth() + "/" + d.getDate() + "/" +    
+        d.getFullYear();    
+    time_t.innerHTML = d.getHours() + ":" + d.getMinutes() + 
+        "  <small>(UTC" + timeZoneShift + localTimeZone + ")</small>";
+}
+
+</script>
+
+</body>
+</html>
