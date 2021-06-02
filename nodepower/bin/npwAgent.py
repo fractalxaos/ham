@@ -153,8 +153,8 @@ def getSensorData(dData):
         dData["current"] = pwr.getCurrent()
         dData["voltage"] = pwr.getVoltage()
         dData["power"] = pwr.getPower()
-        dData["battemp"] = btmp.getTempC()
-        dData["ambtemp"] = atmp.getTempC()
+        dData["battemp"] = btmp.getTempF()
+        dData["ambtemp"] = atmp.getTempF()
      
     except Exception, exError:
         print "%s sensor error: %s" % (getTimeStamp(), exError)
@@ -281,11 +281,11 @@ def createGraph(fileName, dataItem, gLabel, gTitle, gStart,
     if addTrend == 0:
         strCmd += "LINE1:dSeries#0400ff "
     elif addTrend == 1:
-        strCmd += "CDEF:smoothed=dSeries,%s,TREND LINE3:smoothed#ff0000 " \
+        strCmd += "CDEF:smoothed=dSeries,%s,TREND LINE2:smoothed#000000 " \
                   % trendWindow[gStart]
     elif addTrend == 2:
         strCmd += "LINE1:dSeries#0400ff "
-        strCmd += "CDEF:smoothed=dSeries,%s,TREND LINE3:smoothed#ff0000 " \
+        strCmd += "CDEF:smoothed=dSeries,%s,TREND LINE2:smoothed#000000 " \
                   % trendWindow[gStart]
      
     if verboseDebug:
@@ -316,47 +316,47 @@ def generateGraphs():
     # 24 hour stock charts
 
     createGraph('24hr_current', 'CUR', 'mA', 
-                'Current\ -\ Last\ 24\ Hours', 'end-1day', 0, 0, 2, autoScale)
+                'Current\ -\ Last\ 24\ Hours', 'end-1day', 0, 0, 0, autoScale)
     createGraph('24hr_voltage', 'VOLT', 'V', 
-                'Voltage\ -\ Last\ 24\ Hours', 'end-1day', 0, 0, 2, autoScale)
+                'Voltage\ -\ Last\ 24\ Hours', 'end-1day', 0, 0, 0, autoScale)
     createGraph('24hr_power', 'PWR', 'mW', 
-                'Power\ -\ Last\ 24\ Hours', 'end-1day', 0, 0, 2, autoScale)
-    createGraph('24hr_battemp', 'BTMP', 'deg\ C', 
+                'Power\ -\ Last\ 24\ Hours', 'end-1day', 0, 0, 0, autoScale)
+    createGraph('24hr_battemp', 'BTMP', 'deg\ F', 
                 'Battery\ Temperature\ -\ Last\ 24\ Hours', 'end-1day', \
-                 0, 0, 2, autoScale)
-    createGraph('24hr_ambtemp', 'ATMP', 'deg\ C', 
+                 0, 0, 0, autoScale)
+    createGraph('24hr_ambtemp', 'ATMP', 'deg\ F', 
                 'Ambient\ Temperature\ -\ Last\ 24\ Hours', 'end-1day', \
-                 0, 0, 2, autoScale)
+                 0, 0, 0, autoScale)
 
     # 4 week stock charts
 
     createGraph('4wk_current', 'CUR', 'mA', 
-                'Current\ -\ Last\ 4\ Weeks', 'end-4weeks', 0, 0, 2, autoScale)
+                'Current\ -\ Last\ 4\ Weeks', 'end-4weeks', 0, 0, 0, autoScale)
     createGraph('4wk_voltage', 'VOLT', 'V', 
-                'Voltage\ -\ Last\ 4\ Weeks', 'end-4weeks', 0, 0, 2, autoScale)
+                'Voltage\ -\ Last\ 4\ Weeks', 'end-4weeks', 0, 0, 0, autoScale)
     createGraph('4wk_power', 'PWR', 'mW', 
-                'Power\ -\ Last\ 4\ Weeks', 'end-4weeks', 0, 0, 2, autoScale)
-    createGraph('4wk_battemp', 'BTMP', 'deg\ C', 
+                'Power\ -\ Last\ 4\ Weeks', 'end-4weeks', 0, 0, 0, autoScale)
+    createGraph('4wk_battemp', 'BTMP', 'deg\ F', 
                 'Battery\ Temperature\ -\ Last\ 4\ Weeks', 'end-4weeks', \
                  0, 0, 2, autoScale)
-    createGraph('4wk_ambtemp', 'ATMP', 'deg\ C', 
+    createGraph('4wk_ambtemp', 'ATMP', 'deg\ F', 
                 'Ambient\ Temperature\ -\ Last\ 4\ Weeks', 'end-4weeks', \
-                 0, 0, 2, autoScale)
+                 0, 0, 0, autoScale)
 
     # 12 month stock charts
 
     createGraph('12m_current', 'CUR', 'mA', 
-                'Current\ -\ Past\ Year', 'end-12months', 0, 0, 2, autoScale)
+                'Current\ -\ Past\ Year', 'end-12months', 0, 0, 0, autoScale)
     createGraph('12m_voltage', 'VOLT', 'V', 
-                'Voltage\ -\ Past\ Year', 'end-12months', 0, 0, 2, autoScale)
+                'Voltage\ -\ Past\ Year', 'end-12months', 0, 0, 0, autoScale)
     createGraph('12m_power', 'PWR', 'mW', 
-                'Power\ -\ Past\ Year', 'end-12months', 0, 0, 2, autoScale)
-    createGraph('12m_battemp', 'BTMP', 'deg\ C', 
+                'Power\ -\ Past\ Year', 'end-12months', 0, 0, 0, autoScale)
+    createGraph('12m_battemp', 'BTMP', 'deg\ F', 
                 'Battery\ Temperature\ -\ Past\ Year', 'end-12months', \
-                 0, 0, 2, autoScale)
-    createGraph('12m_ambtemp', 'ATMP', 'deg\ C', 
+                 0, 0, 0, autoScale)
+    createGraph('12m_ambtemp', 'ATMP', 'deg\ F', 
                 'Ambient\ Temperature\ -\ Past\ Year', 'end-12months', \
-                 0, 0, 2, autoScale)
+                 0, 0, 0, autoScale)
 ##end def
 
 def getCLarguments():
