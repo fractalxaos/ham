@@ -22,16 +22,11 @@
 </p>
 
 <p>
-<b>FT991A Future projects</b><br>
-<ul>
-<li>Web based interface for Internet remote control</li>
-</ul>
-</p>
-
-<p>
 <b>AREDN Mesh</b><br>
 <ul>
-<li>Web app for viewing long term SNR statistics</li>
+<li>arednsig - a web app for viewing long term SNR statistics</li>
+<li>nodePower - a Raspberry Pi Zero app for monitoring battery
+current, voltage, and temperature at an AREDN node installation.</li>
 </ul>
 </p>
 </body>
