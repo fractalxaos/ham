@@ -1,6 +1,6 @@
 <html>
 <body>
-<img src="static/abutower.png"  style="float:left">
+<img src="images/abutower.png"  style="float:left">
 <h3>Amateur Radio</h3>
 <h4>Software development for computer aided transceivers and other amateur radio related items.
 </h4>
