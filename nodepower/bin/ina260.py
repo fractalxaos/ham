@@ -51,9 +51,10 @@ class ina260:
         # Initialize INA260 sensor.  See the data sheet for meaning of
         # each bit.  The following bytes are written to the configuration
         # register
-        #     byte 1: 01100000
+        #     byte 1: 11100000
         #     byte 2: 00100111
-        initData = [0x60, 0x27]
+        initData = [0b11100000, 0b00100111]
+        #initData = [0x60, 0x27]
         self.bus.write_i2c_block_data(self.sensorAddr, CONFIG_REG, initData)
     ## end def
 
@@ -67,6 +68,15 @@ class ina260:
         configB1 = format(config[0], "08b")
         configB2 = format(config[1], "08b")
         return (mfcidB1, mfcidB2, configB1, configB2)
+    ## end def
+
+    def getCurrentReg(self):
+        # Read current register and return raw binary data for test and
+        # debug.
+        data = self.bus.read_i2c_block_data(self.sensorAddr, CUR_REG, 2)
+        dataB1 = format(data[0], "08b")
+        dataB2 = format(data[1], "08b")
+        return (dataB1, dataB2)
     ## end def
 
     def getCurrent(self):
@@ -86,13 +96,22 @@ class ina260:
         bdata = data[0] << 8 | data[1]
         # Convert from two's complement to integer.
         # If d15 is 1, the the number is a negative two's complement
-        # number.  The absolute value is 2^15 - 1 minus the value
+        # number.  The absolute value is 2^16 - 1 minus the value
         # of d14-d0 taken as a positive number.
         if bdata > 0x7FFF:
-            bdata = -(0xFFFF - bdata) # 0xFFFF is 2^15 - 1
+            bdata = -(0xFFFF - bdata) # 0xFFFF is 2^16 - 1
         # Convert integer data to mAmps.
         mAmps = bdata * 1.25  # LSB is 1.25 mA
         return mAmps
+    ## end def
+
+    def getVoltageReg(self):
+        # Read voltage register and return raw binary data for test
+        # and debug.
+        data = self.bus.read_i2c_block_data(self.sensorAddr, VOLT_REG, 2)
+        dataB1 = format(data[0], "08b")
+        dataB2 = format(data[1], "08b")
+        return (dataB1, dataB2)
     ## end def
 
     def getVoltage(self):
@@ -138,7 +157,9 @@ def test():
     print "manufacturer ID: %s %s\nconfiguration register: %s %s\n" % data
     # Print out sensor values.
     while True:
+        print "current register: %s %s" % pwr1.getCurrentReg()
         print "%6.2f mA" % pwr1.getCurrent()
+        print "volt register: %s %s" % pwr1.getVoltageReg()
         print "%6.2f V" % pwr1.getVoltage()
         print "%6.2f mW\n" % pwr1.getPower()
         time.sleep(2)

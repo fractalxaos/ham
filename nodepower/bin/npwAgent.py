@@ -77,6 +77,8 @@ _CHART_UPDATE_INTERVAL = 600
 _CHART_WIDTH = 600
 # standard chart height in pixels
 _CHART_HEIGHT = 150
+# chart average line color
+_AVERAGE_LINE_COLOR = '#006600'
 
    ### GLOBAL VARIABLES ###
 
@@ -105,7 +107,7 @@ def getTimeStamp():
     Returns: string containing the time stamp
     """
     return time.strftime( "%m/%d/%Y %T", time.localtime() )
-##end def
+## end def
 
 def getEpochSeconds(sTime):
     """Convert the time stamp supplied in the weather data string
@@ -122,7 +124,7 @@ def getEpochSeconds(sTime):
         return None
     tSeconds = int(time.mktime(t_sTime))
     return tSeconds
-##end def
+## end def
 
 def terminateAgentProcess(signal, frame):
     """Send a message to log when the agent process gets killed
@@ -138,7 +140,7 @@ def terminateAgentProcess(signal, frame):
     print '%s terminating npw agent process' % \
               (getTimeStamp())
     sys.exit(0)
-##end def
+## end def
 
   ###  PUBLIC METHODS  ###
 
@@ -161,7 +163,7 @@ def getSensorData(dData):
         return False
 
     return True
-##end def
+## end def
 
 def updateDatabase(dData):
     """
@@ -193,7 +195,7 @@ def updateDatabase(dData):
         return False
 
     return True
-##end def
+## end def
 
 def writeOutputDataFile(dData):
     """Write node data items to the output data file, formatted as 
@@ -236,7 +238,8 @@ def writeOutputDataFile(dData):
 ## end def
 
 def createGraph(fileName, dataItem, gLabel, gTitle, gStart,
-                lower, upper, addTrend, autoScale):
+                lower, upper, trendLine, scaleFactor=1, autoScale=True, 
+                alertLine=""):
     """Uses rrdtool to create a graph of specified node data item.
        Parameters:
            fileName - name of file containing the graph
@@ -246,12 +249,17 @@ def createGraph(fileName, dataItem, gLabel, gTitle, gStart,
            gStart - beginning time of the graphed data
            lower - lower bound for graph ordinate #NOT USED
            upper - upper bound for graph ordinate #NOT USED
-           addTrend - 0, show only graph data
-                      1, show only a trend line
-                      2, show a trend line and the graph data
+           trendLine 
+                0, show only graph data
+                1, show only a trend line
+                2, show a trend line and the graph data
+           scaleFactor - amount to pre-scale the data before charting
+                the data [default=1]
            autoScale - if True, then use vertical axis auto scaling
-               (lower and upper parameters are ignored), otherwise use
-               lower and upper parameters to set vertical axis scale
+                (lower and upper parameters must be zero)
+           alertLine - value for which to print a critical
+                low voltage alert line on the chart. If not provided
+                alert line will not be printed.
        Returns: True if successful, False otherwise
     """
     gPath = _CHARTS_DIRECTORY + fileName + ".png"
@@ -277,16 +285,21 @@ def createGraph(fileName, dataItem, gLabel, gTitle, gStart,
  
     # Show the data, or a moving average trend line over
     # the data, or both.
-    strCmd += "DEF:dSeries=%s:%s:LAST " % (_RRD_FILE, dataItem)
-    if addTrend == 0:
+    strCmd += "DEF:rSeries=%s:%s:LAST " % (_RRD_FILE, dataItem)
+    strCmd += "CDEF:dSeries=rSeries,%s,/ " % (scaleFactor)
+
+    if trendLine == 0:
         strCmd += "LINE1:dSeries#0400ff "
-    elif addTrend == 1:
-        strCmd += "CDEF:smoothed=dSeries,%s,TREND LINE2:smoothed#000000 " \
-                  % trendWindow[gStart]
-    elif addTrend == 2:
+    elif trendLine == 1:
+        strCmd += "CDEF:smoothed=dSeries,%s,TREND LINE2:smoothed%s " \
+                  % (trendWindow[gStart], _AVERAGE_LINE_COLOR)
+    elif trendLine == 2:
         strCmd += "LINE1:dSeries#0400ff "
-        strCmd += "CDEF:smoothed=dSeries,%s,TREND LINE2:smoothed#000000 " \
-                  % trendWindow[gStart]
+        strCmd += "CDEF:smoothed=dSeries,%s,TREND LINE2:smoothed%s " \
+                  % (trendWindow[gStart], _AVERAGE_LINE_COLOR)
+
+    if alertLine != "":
+        strCmd += "HRULE:%s#FF0000:Critical\ Low\ Voltage " % (alertLine)
      
     if verboseDebug:
         print "%s" % strCmd # DEBUG
@@ -304,60 +317,68 @@ def createGraph(fileName, dataItem, gLabel, gTitle, gStart,
         print "rrdtool graph: %s\n" % result,
     return True
 
-##end def
+## end def
 
 def generateGraphs():
     """Generate graphs for display in html documents.
        Parameters: none
        Returns: nothing
     """
-    autoScale = False
 
     # 24 hour stock charts
 
-    createGraph('24hr_current', 'CUR', 'mA', 
-                'Current\ -\ Last\ 24\ Hours', 'end-1day', 0, 0, 0, autoScale)
-    createGraph('24hr_voltage', 'VOLT', 'V', 
-                'Voltage\ -\ Last\ 24\ Hours', 'end-1day', 0, 0, 0, autoScale)
-    createGraph('24hr_power', 'PWR', 'mW', 
-                'Power\ -\ Last\ 24\ Hours', 'end-1day', 0, 0, 0, autoScale)
+    createGraph('24hr_current', 'CUR', 'Amps',
+                'Current\ -\ Last\ 24\ Hours', 'end-1day', \
+                0, 0, 2, 1000)
+    createGraph('24hr_voltage', 'VOLT', 'Volts',
+                'Voltage\ -\ Last\ 24\ Hours', 'end-1day', \
+                9, 15, 0, 1, True, 11)
+    createGraph('24hr_power', 'PWR', 'Watts', 
+                'Power\ -\ Last\ 24\ Hours', 'end-1day', \
+                0, 0, 2, 1000)
     createGraph('24hr_battemp', 'BTMP', 'deg\ F', 
                 'Battery\ Temperature\ -\ Last\ 24\ Hours', 'end-1day', \
-                 0, 0, 0, autoScale)
+                0, 0, 0)
     createGraph('24hr_ambtemp', 'ATMP', 'deg\ F', 
                 'Ambient\ Temperature\ -\ Last\ 24\ Hours', 'end-1day', \
-                 0, 0, 0, autoScale)
+                0, 0, 0)
 
     # 4 week stock charts
 
-    createGraph('4wk_current', 'CUR', 'mA', 
-                'Current\ -\ Last\ 4\ Weeks', 'end-4weeks', 0, 0, 0, autoScale)
-    createGraph('4wk_voltage', 'VOLT', 'V', 
-                'Voltage\ -\ Last\ 4\ Weeks', 'end-4weeks', 0, 0, 0, autoScale)
-    createGraph('4wk_power', 'PWR', 'mW', 
-                'Power\ -\ Last\ 4\ Weeks', 'end-4weeks', 0, 0, 0, autoScale)
+    createGraph('4wk_current', 'CUR', 'Amps',
+                'Current\ -\ Last\ 4\ Weeks', 'end-4weeks', \
+                0, 0, 2, 1000)
+    createGraph('4wk_voltage', 'VOLT', 'Volts',
+                'Voltage\ -\ Last\ 4\ Weeks', 'end-4weeks', \
+                9, 15, 0, 1, True, 11)
+    createGraph('4wk_power', 'PWR', 'Watts', 
+                'Power\ -\ Last\ 4\ Weeks', 'end-4weeks', \
+                0, 0, 2, 1000)
     createGraph('4wk_battemp', 'BTMP', 'deg\ F', 
                 'Battery\ Temperature\ -\ Last\ 4\ Weeks', 'end-4weeks', \
-                 0, 0, 2, autoScale)
+                0, 0, 2)
     createGraph('4wk_ambtemp', 'ATMP', 'deg\ F', 
                 'Ambient\ Temperature\ -\ Last\ 4\ Weeks', 'end-4weeks', \
-                 0, 0, 0, autoScale)
+                0, 0, 2)
 
     # 12 month stock charts
 
-    createGraph('12m_current', 'CUR', 'mA', 
-                'Current\ -\ Past\ Year', 'end-12months', 0, 0, 0, autoScale)
-    createGraph('12m_voltage', 'VOLT', 'V', 
-                'Voltage\ -\ Past\ Year', 'end-12months', 0, 0, 0, autoScale)
-    createGraph('12m_power', 'PWR', 'mW', 
-                'Power\ -\ Past\ Year', 'end-12months', 0, 0, 0, autoScale)
+    createGraph('12m_current', 'CUR', 'Amps',
+                'Current\ -\ Past\ Year', 'end-12months', \
+                0, 0, 2, 1000)
+    createGraph('12m_voltage', 'VOLT', 'Volts',
+                'Voltage\ -\ Past\ Year', 'end-12months', \
+                9, 15, 0, 1, True, 11)
+    createGraph('12m_power', 'PWR', 'Watts', 
+                'Power\ -\ Past\ Year', 'end-12months', \
+                0, 0, 2, 1000)
     createGraph('12m_battemp', 'BTMP', 'deg\ F', 
                 'Battery\ Temperature\ -\ Past\ Year', 'end-12months', \
-                 0, 0, 0, autoScale)
+                0, 0, 2)
     createGraph('12m_ambtemp', 'ATMP', 'deg\ F', 
                 'Ambient\ Temperature\ -\ Past\ Year', 'end-12months', \
-                 0, 0, 0, autoScale)
-##end def
+                0, 0, 2)
+## end def
 
 def getCLarguments():
     """Get command line arguments.  There are three possible arguments
@@ -437,6 +458,7 @@ def main():
             # If get data successful, write data to data files.
             if result:
                 result = writeOutputDataFile(dData)
+                pass
 
             # At the rrdtool database update interval, update the database.
             if currentTime - lastDatabaseUpdateTime > \
@@ -445,13 +467,14 @@ def main():
                 ## Update the round robin database with the parsed data.
                 if result:
                     updateDatabase(dData)
+                    pass
 
         # At the chart generation interval, generate charts.
         if currentTime - lastChartUpdateTime > chartUpdateInterval:
             lastChartUpdateTime = currentTime
             p = multiprocessing.Process(target=generateGraphs, args=())
             p.start()
-
+            
         # Relinquish processing back to the operating system until
         # the next update interval.
 

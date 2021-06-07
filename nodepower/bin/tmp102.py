@@ -66,6 +66,15 @@ class tmp102:
         return (configB1, configB2)
     ## end def
 
+    def getTempReg(self):
+        # Read temperature register and return raw binary data for test
+        # and debug.
+        data = self.bus.read_i2c_block_data(self.sensorAddr, TEMP_REG, 2)
+        dataB1 = format(data[0], "08b")
+        dataB2 = format(data[1], "08b")
+        return (dataB1, dataB2)
+    ## end def
+
     # Gets the temperature in binary format and converts to degrees
     # Celsius.
     def getTempC(self):
@@ -110,14 +119,17 @@ def testclass():
     # Print out sensor values.
     bAl = False
     while True:
+        regdata = ts1.getTempReg()
         tempC = ts1.getTempC()
         tempF = ts1.getTempF()
         if bAl:
             bAl = False
-            print "\033[42;30m%6.2f%sC  %6.2f%sF\033[m" % \
+            print "\033[42;30mTemperature Reg: %s %s\033[m" % regdata
+            print "\033[42;30m%6.2f%sC  %6.2f%s                 \033[m" % \
                   (tempC, DEGSYM, tempF, DEGSYM)
         else:
             bAl = True
+            print "Temperature Reg: %s %s" % regdata
             print "%6.2f%sC  %6.2f%sF" % \
                   (tempC, DEGSYM, tempF, DEGSYM)
         time.sleep(2)

@@ -36,6 +36,11 @@ p {
     text-align: left;
     padding: 10px;
 }
+#alert {
+    font: bold 22px arial, sans-serif;
+    color: red;
+    /*border: 1px solid black;*/
+}
 .rowContainer {
     display: table;
     width: 100%;
@@ -60,7 +65,7 @@ p {
 }
 .chartContainer {
     padding: 2px;
-    /*border: 1px solid black;*/
+    border: 1px solid black;
 }
 img.chart {
     width: 100%;
@@ -114,6 +119,11 @@ temperatures.
 <text id="time"></text>
 </div>
 
+<div id="alert">
+<text id="alertmsg" style="opacity: 0;">
+Warning: Low Battery Voltage</text>
+</div>
+
 <div class="rowContainer">
 
 <div class="currentDataCell">
@@ -122,10 +132,10 @@ Current:<br>
 Voltage:<br>
 Power:
 </div>
-<div class="dataItems" style="width: 30%;">
+<div class="dataItems" style="width: 40%;">
 <text id="current"></text> mA<br>
 <text id="voltage"></text> V<br>
-<text id="power"></text> mW
+<text id="power"></text> W
 </div>
 </div>
 
@@ -215,10 +225,12 @@ Status:
 </div>
 
 <script>
+"use strict";
 
 /* Global constants */
 
-var sensorDataUrl = "dynamic/powerData.js";
+var SENSOR_DATA_URL = "dynamic/powerData.js";
+var CRITICAL_VOLTAGE = 11.0;
 
 /* Global DOM objects */
 
@@ -238,7 +250,8 @@ var power_t = document.getElementById("power");
 var battemp_t = document.getElementById("battemp");    
 var ambtemp_t = document.getElementById("ambtemp");    
 var status_t = document.getElementById("status");
-var period_t = document.getElementById("period");    
+var period_t = document.getElementById("period");
+var alertmsg_t = document.getElementById("alertmsg");   
 
 /* Global objects */
 
@@ -247,6 +260,7 @@ var httpRequest = new XMLHttpRequest();
 /* Global variables */
 
 var graphPeriod;
+var objBlink;
 
 function main() {
     // Register call back function to process client http requests
@@ -270,7 +284,7 @@ function main() {
 }
 
 function getSensorData() {
-    httpRequest.open("GET", sensorDataUrl, true);
+    httpRequest.open("GET", SENSOR_DATA_URL, true);
     httpRequest.timeout = 3000;
     httpRequest.send();
 }
@@ -303,17 +317,27 @@ function getSensorGraphs() {
 }
 
 function displayData(dataItem) {
+    var voltage, current, power, ambtemp, battemp, powerWatts
+
+    voltage = Number(dataItem.voltage);
+    current = Number(dataItem.current);
+    power = Number(dataItem.power)/1000.0;
+    battemp = Number(dataItem.battemp);
+    ambtemp = Number(dataItem.ambtemp);
+
+    if (voltage < CRITICAL_VOLTAGE) {
+        displayAlert();
+    } else {
+        clearAlert();
+    }
+
     displayTime(dataItem);
-    current_t.innerHTML = 
-        (Number(dataItem.current).toFixed(2)).toString();
-    voltage_t.innerHTML = 
-        (Number(dataItem.voltage).toFixed(2)).toString();
-    power_t.innerHTML = 
-        (Number(dataItem.power).toFixed(2)).toString();
-    battemp_t.innerHTML = 
-        (Number(dataItem.battemp).toFixed(2)).toString();
-    ambtemp_t.innerHTML = 
-        (Number(dataItem.ambtemp).toFixed(2)).toString();
+    current_t.innerHTML = current.toFixed(2).toString(); 
+    voltage_t.innerHTML = voltage.toFixed(2).toString();
+    power_t.innerHTML = power.toFixed(2).toString();
+    battemp_t.innerHTML = battemp.toFixed(2).toString();
+    ambtemp_t.innerHTML = ambtemp.toFixed(2).toString();
+
     period_t.innerHTML = dataItem.period / 60;
     status_t.innerHTML = "online";
     status_t.style.color = "green";
@@ -329,6 +353,20 @@ function displayOfflineStatus() {
     period_t.innerHTML = " -n/a- ";
     status_t.innerHTML = "offline";
     status_t.style.color = "red";
+}
+
+function displayAlert() {
+    if (typeof objBlink == "undefined") {
+    objBlink = setInterval(function() {
+            alertmsg_t.style.opacity = 
+                (alertmsg_t.style.opacity == 0 ? 1 : 0);
+    }, 1000);
+    }
+}
+
+function clearAlert() {
+    clearInterval(objBlink);
+    alertmsg_t.style.opacity = 0;
 }
 
 function displayTime(dataItem) {
