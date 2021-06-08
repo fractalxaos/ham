@@ -46,21 +46,21 @@ import tmp102 # temperature sensor
 
     ### SENSOR BUS ADDRESSES ###
 
-# Set bus addresses of sensors
+# Set bus addresses of sensors.
 _PWR_SENSOR_ADDR = 0X40
 _BAT_TMP_SENSOR_ADDR = 0x48
 _AMB_TMP_SENSOR_ADDR = 0x4B
-# Set bus selector
+# Set bus selector.
 _BUS_SEL = 1
 
     ### FILE AND FOLDER LOCATIONS ###
 
 _USER = os.environ['USER']
-# folder for containing dynamic data objects
+# folder to contain dynamic data objects
 _DOCROOT_PATH = "/home/%s/public_html/power/" % _USER
-# folder for charts and output data file
+# folder to contain charts and output data file
 _CHARTS_DIRECTORY = _DOCROOT_PATH + "dynamic/"
-# location of data output file
+# location of JSON output data file
 _OUTPUT_DATA_FILE = _DOCROOT_PATH + "dynamic/powerData.js"
 # database that stores node data
 _RRD_FILE = "/home/%s/database/powerData.rrd" % _USER
@@ -82,13 +82,12 @@ _AVERAGE_LINE_COLOR = '#006600'
 
    ### GLOBAL VARIABLES ###
 
-# turn on or off of verbose debugging information
+# debug output options
 debugOption = False
 verboseDebug = False
-
 # frequency of data requests to sensors
 dataRequestInterval = _DEFAULT_DATA_REQUEST_INTERVAL
-# chart update interval
+# how often charts get updated
 chartUpdateInterval = _CHART_UPDATE_INTERVAL
 # last node request time
 lastDataPointTime = -1
@@ -127,9 +126,9 @@ def getEpochSeconds(sTime):
 ## end def
 
 def terminateAgentProcess(signal, frame):
-    """Send a message to log when the agent process gets killed
+    """Send a message to the log when the agent process gets killed
        by the operating system.  Inform downstream clients
-       by removing input and output data files.
+       by removing output data files.
        Parameters:
            signal, frame - dummy parameters
        Returns: nothing
@@ -145,10 +144,11 @@ def terminateAgentProcess(signal, frame):
   ###  PUBLIC METHODS  ###
 
 def getSensorData(dData):
-    """Poll sensors for data.
-       Parameters: none
-       Returns: a string containing the node signal data if successful,
-                or None if not successful
+    """Poll sensors for data. Store the data in a dictionary object for
+       use by other subroutines.  The dictionary object passed in should
+       an empty dictionary, i.e., dData = { }.
+       Parameters: dData - a dictionary object to contain the sensor data
+       Returns: True if successful, False otherwise
     """
     try:
         dData["time"] = getTimeStamp()
@@ -199,10 +199,10 @@ def updateDatabase(dData):
 
 def writeOutputDataFile(dData):
     """Write node data items to the output data file, formatted as 
-       a Javascript file.  This file may then be accessed and used by
-       by downstream clients, for instance, in HTML documents.
+       a Javascript file.  This file may then be requested and used by
+       by downstream clients, for instance, an HTML document.
        Parameters:
-           sData - a string object containing the data to be written
+           dData - a dictionary containing the data to be written
                    to the output data file
        Returns: True if successful, False otherwise
     """
@@ -238,8 +238,8 @@ def writeOutputDataFile(dData):
 ## end def
 
 def createGraph(fileName, dataItem, gLabel, gTitle, gStart,
-                lower, upper, trendLine, scaleFactor=1, autoScale=True, 
-                alertLine=""):
+                lower=0, upper=0, trendLine=0, scaleFactor=1,
+                autoScale=True, alertLine=""):
     """Uses rrdtool to create a graph of specified node data item.
        Parameters:
            fileName - name of file containing the graph
@@ -384,10 +384,11 @@ def getCLarguments():
     """Get command line arguments.  There are three possible arguments
           -d turns on debug mode
           -v turns on verbose debug mode
-          -t sets the sensor query interval
+          -p sets the sensor query period
+          -c sets the chart update period
        Returns: nothing
     """
-    global debugOption, verboseDebug, dataRequestInterval
+    global debugOption, verboseDebug, dataRequestInterval, chartUpdateInterval
 
     index = 1
     while index < len(sys.argv):
@@ -400,12 +401,20 @@ def getCLarguments():
             try:
                 dataRequestInterval = abs(int(sys.argv[index + 1]))
             except:
-                print "invalid polling period"
+                print "invalid sensor query period"
+                exit(-1)
+            index += 1
+        elif sys.argv[index] == '-c':
+            try:
+                chartUpdateInterval = abs(int(sys.argv[index + 1]))
+            except:
+                print "invalid chart update period"
                 exit(-1)
             index += 1
         else:
             cmd_name = sys.argv[0].split('/')
-            print "Usage: %s [-d] [-v] [-p seconds]" % cmd_name[-1]
+            print "Usage: %s [-d | v] [-p seconds] [-c seconds]" \
+                  % cmd_name[-1]
             exit(-1)
         index += 1
 ##end def
