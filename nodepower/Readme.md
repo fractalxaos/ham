@@ -9,7 +9,7 @@ Installing and using NodePower will give you an excellent introduction to Linux 
 </p>
 <p>
 You can find all the required software available under open source, GNU license on this project site.  Please read the
- <a href="docs/NodePower_Software_Installation_Guide.pdf">installation instructions</a> for details on how to install NodePower.
+ <a href="docs/nodePower_software_installation_guide.pdf">installation instructions</a> for details on how to install NodePower.
 Also in the docs folder you will find schematics, datasheets for the sensors, and hookup guides.
 </p> 
 </body>
