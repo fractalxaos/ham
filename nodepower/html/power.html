@@ -95,6 +95,11 @@ text.chartNav {
     display: inline-block;
     padding: 8px 12px;
 }
+#iframe_a {
+    border:none;
+    width:100%;
+    height:1075px;
+}
 </style>
 </head>
 
@@ -179,9 +184,33 @@ Status:
 4 weeks</text></li>
 <li class="chartNav"><text class="chartNav" onclick="setChartPeriod(3)">
 12 months</text></li>
+
+<li id="customSelector" class="chartNav">
+<text  class="chartNav"
+ onclick="setChartPeriod(0)">Custom…</text></li>
+
 </ul>
 </span>
+
+<div class="rowContainer" id="customChartsContainer" style="display:none;">
+<div class="currentDataCell">
+<form id="fmDateSelector" action="power.php" method="post"
+ target="iframe_a">
+<label for="beginDate">Begin Date: </label>
+<input id="beginDate" name="beginDate" type="date" value="mm/dd/yyyy" />
+<label for="endDate">End Date: </label>
+<input id="endDate" name="endDate" type="date" value="mm/dd/yyyy" />
+<br><br>
+<input type="button" onclick="getCustomCharts()" value="Get Charts">
+</form>
+<span id="errorMsg"></span><br>
+<iframe id="iframe_a" name="iframe_a"></iframe>
+</div>
+</div>
+
 <br>
+
+<div class="rowContainer" id="stockChartsContainer">
 
 <div class="chartContainer">
 <img class="chart" id="current_g">
@@ -201,6 +230,8 @@ Status:
 
 <div class="chartContainer">
 <img class="chart" id="ambtemp_g">
+</div>
+
 </div>
 
 <div id="notes">
@@ -253,16 +284,27 @@ var status_t = document.getElementById("status");
 var period_t = document.getElementById("period");
 var alertmsg_t = document.getElementById("alertmsg");   
 
+var customChartsContainer = document.getElementById("customChartsContainer");
+var stockChartsContainer = document.getElementById("stockChartsContainer");
+var fmDateSelector = document.getElementById("fmDateSelector");
+var errorMsg = document.getElementById("errorMsg");
+var customSelector = document.getElementById("customSelector");
+
 /* Global objects */
 
 var httpRequest = new XMLHttpRequest();
 
 /* Global variables */
 
-var graphPeriod;
+var chartPeriod = 1;
 var objBlink;
 
 function main() {
+
+    if (location.hostname.match(/.local/g) == null) {
+        customSelector.style.visibility = "hidden";
+    }
+
     // Register call back function to process client http requests
     httpRequest.onreadystatechange = function() {
         if (httpRequest.readyState == 4 && httpRequest.status == 200) {
@@ -276,8 +318,8 @@ function main() {
         displayOfflineStatus();
     };
 
+    initializeDateSelector();
     getSensorData();
-    graphPeriod = 1;
     getSensorGraphs();
     setInterval(getSensorData, 2000);
     setInterval(getSensorGraphs, 600000);
@@ -290,15 +332,22 @@ function getSensorData() {
 }
 
 function setChartPeriod(n) {
-    graphPeriod = n;
-    getSensorGraphs();
+    chartPeriod = n;
+    if (n == 0) {
+        customChartsContainer.style.display = "block";
+        stockChartsContainer.style.display = "none";
+    } else {
+        customChartsContainer.style.display = "none";
+        stockChartsContainer.style.display = "block";
+        getSensorGraphs();
+    }
 }
 
 function getSensorGraphs() {
     var d = new Date;
     var pfx;
 
-    switch(graphPeriod) {
+    switch(chartPeriod) {
         case 1:
             pfx = "24hr_";
             break;
@@ -401,6 +450,23 @@ function displayHostTime() {
         d.getFullYear();    
     time_t.innerHTML = d.getHours() + ":" + d.getMinutes() + 
         "  <small>(UTC" + timeZoneShift + localTimeZone + ")</small>";
+}
+
+function initializeDateSelector() {
+    var d = new Date();
+
+    var dEnd = new Date(d.getFullYear(),
+               d.getMonth(), d.getDate() - 0);
+
+    var dBegin = new Date(d.getFullYear(),
+               d.getMonth(), d.getDate() - 1);
+
+    document.getElementById("beginDate").valueAsDate = dBegin;
+    document.getElementById("endDate").valueAsDate = dEnd;
+}
+
+function getCustomCharts() {
+    fmDateSelector.submit();
 }
 
 </script>
