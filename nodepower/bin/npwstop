@@ -1,5 +1,5 @@
 #!/bin/bash
-# Stop the radmon agent process and clean up environment.
+# Stop the node power agent process and clean up environment.
 
 AGENT_NAME="[n]pwAgent.py"
 

@@ -38,32 +38,40 @@ CUR_REG = 0x1
 VOLT_REG = 0x2
 PWR_REG = 0x3
 
+# Define default sm bus address.
+DEFAULT_BUS_ADDRESS = 0x40
+DEFAULT_BUS_NUMBER = 1
+
+# Define the default sensor configuration.  See the INA260 data sheet
+# for meaning of each bit.  The following bytes are written to the
+# configuration register
+#     byte 1: 11100000
+#     byte 2: 00100111
+DEFAULT_CONFIG = 0xE027
+
 class ina260:
     # Initialize the INA260 sensor at the supplied address (default
     # address is 0x40), and supplied bus (default is 1).  Creates
     # a new SMBus object for each instance of this class.  Writes
     # configuration data (two bytes) to the INA260 configuration
     # register.
-    def __init__(self, sAddr=0x40, sbus=1):
-        # Instantiate a smbus object
+    def __init__(self, sAddr=DEFAULT_BUS_ADDRESS,
+                       sbus=DEFAULT_BUS_NUMBER,
+                       config=DEFAULT_CONFIG):
+        # Instantiate a smbus object.
         self.sensorAddr = sAddr
         self.bus = smbus.SMBus(sbus)
-        # Initialize INA260 sensor.  See the data sheet for meaning of
-        # each bit.  The following bytes are written to the configuration
-        # register
-        #     byte 1: 11100000
-        #     byte 2: 00100111
-        initData = [0b11100000, 0b00100111]
-        #initData = [0x60, 0x27]
+        # Initialize INA260 sensor.  
+        initData = [(config >> 8), (config & 0x00FF)]
         self.bus.write_i2c_block_data(self.sensorAddr, CONFIG_REG, initData)
     ## end def
 
     def status(self):
-        # Read configuration data
+        # Read manufacture identification data.
         mfcid = self.bus.read_i2c_block_data(self.sensorAddr, ID_REG, 2)
         mfcidB1 = format(mfcid[0], "08b")
         mfcidB2 = format(mfcid[1], "08b")
-        # Read configuration data
+        # Read configuration data.
         config = self.bus.read_i2c_block_data(self.sensorAddr, CONFIG_REG, 2)
         configB1 = format(config[0], "08b")
         configB2 = format(config[1], "08b")
@@ -97,9 +105,9 @@ class ina260:
         # Convert from two's complement to integer.
         # If d15 is 1, the the number is a negative two's complement
         # number.  The absolute value is 2^16 - 1 minus the value
-        # of d14-d0 taken as a positive number.
+        # of d15-d0 taken as a positive number.
         if bdata > 0x7FFF:
-            bdata = -(0xFFFF - bdata) # 0xFFFF is 2^16 - 1
+            bdata = -(0xFFFF - bdata) # 0xFFFF equals 2^16 - 1
         # Convert integer data to mAmps.
         mAmps = bdata * 1.25  # LSB is 1.25 mA
         return mAmps
@@ -154,14 +162,14 @@ def test():
     pwr1 = ina260(0x40, 1)
     # Read the INA260 configuration register and manufacturer's ID.
     data = pwr1.status()
-    print "manufacturer ID: %s %s\nconfiguration register: %s %s\n" % data
+    print("manufacturer ID: %s %s\nconfiguration register: %s %s\n" % data)
     # Print out sensor values.
     while True:
-        print "current register: %s %s" % pwr1.getCurrentReg()
-        print "%6.2f mA" % pwr1.getCurrent()
-        print "volt register: %s %s" % pwr1.getVoltageReg()
-        print "%6.2f V" % pwr1.getVoltage()
-        print "%6.2f mW\n" % pwr1.getPower()
+        print("current register: %s %s" % pwr1.getCurrentReg())
+        print("%6.2f mA" % pwr1.getCurrent())
+        print("volt register: %s %s" % pwr1.getVoltageReg())
+        print("%6.2f V" % pwr1.getVoltage())
+        print("%6.2f mW\n" % pwr1.getPower())
         time.sleep(2)
 ## end def
 

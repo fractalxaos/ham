@@ -7,7 +7,7 @@
 # Description: Creates a rrdtool database for use by the power agent to
 # store the data from the power and temperature sensors.  The agent uses
 # the data in the database to generate graphic charts for display in the
-# weather station web page.
+# node power web page.
 #
 # Copyright 2021 Jeff Owrey
 #    This program is free software: you can redistribute it and/or modify

@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python2
 #
 # Module: tmp102.py
 #
@@ -31,11 +31,22 @@ import smbus
 import time
 
 # Define constants
-DEGSYM = u'\xb0'
+DEGSYM = u'\xB0'
 
 # Define TMP102 Device Registers
 CONFIG_REG = 0x1
 TEMP_REG = 0x0
+
+# Define default sm bus address.
+DEFAULT_BUS_ADDRESS = 0x48
+DEFAULT_BUS_NUMBER = 1
+
+# Define the default sensor configuration.  See the TMP102 data sheet
+# for meaning of each bit.  The following bytes are written to the
+# configuration register
+#     byte 1: 01100000
+#     byte 2: 10100000
+DEFAULT_CONFIG = 0x60A0
 
 class tmp102:
 
@@ -44,16 +55,14 @@ class tmp102:
     # a new SMBus object for each instance of this class.  Writes
     # configuration data (two bytes) to the TMP102 configuration
     # register.
-    def __init__(self, sAddr=0x48, sbus=1): 
+    def __init__(self, sAddr=DEFAULT_BUS_ADDRESS,
+                 sbus=DEFAULT_BUS_NUMBER,
+                 config=DEFAULT_CONFIG): 
         # Instantiate a smbus object
         self.sensorAddr = sAddr
         self.bus = smbus.SMBus(sbus)
-        # Initialize TMP102 sensor.  See the data sheet for meaning of
-        # each bit.  The following bytes are written to the configuration
-        # register
-        #     byte 1: 01100000
-        #     byte 2: 10100000
-        initData = [0x60, 0xA0]
+        # Initialize TMP102 sensor.  
+        initData = [(config >> 8), (config & 0x00FF)]
         self.bus.write_i2c_block_data(self.sensorAddr, CONFIG_REG, initData)
     ## end def
 
@@ -95,7 +104,7 @@ class tmp102:
         # Convert from two's complement to integer.
         # If d11 is 1, the the number is a negative two's complement
         # number.  The absolute value is 2^12 - 1 minus the value
-        # of d10-d0 taken as a positive number.
+        # of d11-d0 taken as a positive number.
         if bData > 0x7FF:  # all greater values are negative numbers
             bData = -(0xFFF - bData)  # 0xFFF is 2^12 - 1
         # convert integer data to Celsius
@@ -124,14 +133,14 @@ def testclass():
         tempF = ts1.getTempF()
         if bAl:
             bAl = False
-            print "\033[42;30mTemperature Reg: %s %s\033[m" % regdata
-            print "\033[42;30m%6.2f%sC  %6.2f%s                 \033[m" % \
-                  (tempC, DEGSYM, tempF, DEGSYM)
+            print("\033[42;30mTemperature Reg: %s %s\033[m" % regdata)
+            print("\033[42;30m%6.2f%sC  %6.2f%s                 \033[m" % \
+                  (tempC, DEGSYM, tempF, DEGSYM))
         else:
             bAl = True
-            print "Temperature Reg: %s %s" % regdata
-            print "%6.2f%sC  %6.2f%sF" % \
-                  (tempC, DEGSYM, tempF, DEGSYM)
+            print("Temperature Reg: %s %s" % regdata)
+            print("%6.2f%sC  %6.2f%sF" % \
+                  (tempC, DEGSYM, tempF, DEGSYM))
         time.sleep(2)
     ## end while
 ## end def

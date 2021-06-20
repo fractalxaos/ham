@@ -1,5 +1,6 @@
 #!/bin/bash
-#
+# Starts up the node power agent as a background process
+# and redirects output to a log file.
 
 APP_PATH="/home/$USER/bin"
 LOG_PATH="/home/$USER/log"

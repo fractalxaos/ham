@@ -39,10 +39,14 @@ import signal
 import subprocess
 import multiprocessing
 import time
+import json
 
 # Import sensor libraries.
 import ina260 # power sensor
 import tmp102 # temperature sensor
+
+    ### ENVIRONMENT ###
+_USER = os.environ['USER']
 
     ### SENSOR BUS ADDRESSES ###
 
@@ -55,8 +59,7 @@ _BUS_SEL = 1
 
     ### FILE AND FOLDER LOCATIONS ###
 
-_USER = os.environ['USER']
-# folder to contain dynamic data objects
+# folder to contain html
 _DOCROOT_PATH = "/home/%s/public_html/power/" % _USER
 # folder to contain charts and output data file
 _CHARTS_DIRECTORY = _DOCROOT_PATH + "dynamic/"
@@ -67,10 +70,10 @@ _RRD_FILE = "/home/%s/database/powerData.rrd" % _USER
 
     ### GLOBAL CONSTANTS ###
 
-# rrdtool database update interval in seconds
-_DATABASE_UPDATE_INTERVAL = 30
 # sensor data request interval in seconds
 _DEFAULT_DATA_REQUEST_INTERVAL = 2
+# rrdtool database update interval in seconds
+_DATABASE_UPDATE_INTERVAL = 30
 # chart update interval in seconds
 _CHART_UPDATE_INTERVAL = 600
 # standard chart width in pixels
@@ -85,6 +88,7 @@ _AVERAGE_LINE_COLOR = '#006600'
 # debug output options
 debugOption = False
 verboseDebug = False
+
 # frequency of data requests to sensors
 dataRequestInterval = _DEFAULT_DATA_REQUEST_INTERVAL
 # how often charts get updated
@@ -101,7 +105,7 @@ atmp = tmp102.tmp102(_AMB_TMP_SENSOR_ADDR, _BUS_SEL)
 
 def getTimeStamp():
     """
-    Set the error message time stamp to the local system time.
+    Get the local time and format as a text string.
     Parameters: none
     Returns: string containing the time stamp
     """
@@ -109,57 +113,58 @@ def getTimeStamp():
 ## end def
 
 def getEpochSeconds(sTime):
-    """Convert the time stamp supplied in the weather data string
-       to seconds since 1/1/1970 00:00:00.
-       Parameters: 
-           sTime - the time stamp to be converted must be formatted
+    """
+    Convert the time stamp to seconds since 1/1/1970 00:00:00.
+    Parameters: 
+        sTime - the time stamp to be converted must be formatted
                    as %m/%d/%Y %H:%M:%S
-       Returns: epoch seconds
+    Returns: epoch seconds
     """
     try:
         t_sTime = time.strptime(sTime, '%m/%d/%Y %H:%M:%S')
-    except Exception, exError:
-        print '%s getEpochSeconds: %s' % (getTimeStamp(), exError)
+    except Exception as exError:
+        print('%s getEpochSeconds: %s' % (getTimeStamp(), exError))
         return None
     tSeconds = int(time.mktime(t_sTime))
     return tSeconds
 ## end def
 
 def terminateAgentProcess(signal, frame):
-    """Send a message to the log when the agent process gets killed
-       by the operating system.  Inform downstream clients
-       by removing output data files.
-       Parameters:
-           signal, frame - dummy parameters
-       Returns: nothing
+    """
+    Send a message to the log when the agent process gets killed
+    by the operating system.  Inform downstream clients
+    by removing output data files.
+    Parameters:
+        signal, frame - dummy parameters
+    Returns: nothing
     """
     # Inform downstream clients by removing output data file.
     if os.path.exists(_OUTPUT_DATA_FILE):
        os.remove(_OUTPUT_DATA_FILE)
-    print '%s terminating npw agent process' % \
-              (getTimeStamp())
+    print('%s terminating npw agent process' % getTimeStamp())
     sys.exit(0)
 ## end def
 
   ###  PUBLIC METHODS  ###
 
 def getSensorData(dData):
-    """Poll sensors for data. Store the data in a dictionary object for
-       use by other subroutines.  The dictionary object passed in should
-       an empty dictionary, i.e., dData = { }.
-       Parameters: dData - a dictionary object to contain the sensor data
-       Returns: True if successful, False otherwise
     """
+    Poll sensors for data. Store the data in a dictionary object for
+    use by other subroutines.  The dictionary object passed in should
+    an empty dictionary, i.e., dData = { }.
+    Parameters: dData - a dictionary object to contain the sensor data
+    Returns: True if successful, False otherwise
+    """
+    dData["time"] = getTimeStamp()
+ 
     try:
-        dData["time"] = getTimeStamp()
         dData["current"] = pwr.getCurrent()
         dData["voltage"] = pwr.getVoltage()
         dData["power"] = pwr.getPower()
         dData["battemp"] = btmp.getTempF()
         dData["ambtemp"] = atmp.getTempF()
-     
-    except Exception, exError:
-        print "%s sensor error: %s" % (getTimeStamp(), exError)
+    except Exception as exError:
+        print("%s sensor error: %s" % (getTimeStamp(), exError))
         return False
 
     return True
@@ -182,29 +187,33 @@ def updateDatabase(dData):
              dData['voltage'], dData['power'], dData['battemp'], \
              dData['ambtemp'])
 
-    if debugOption:
-        print "%s" % strCmd # DEBUG
+    if verboseDebug:
+        print("%s" % strCmd) # DEBUG
 
     # Run the command as a subprocess.
     try:
-        subprocess.check_output(strCmd, shell=True,  \
-                             stderr=subprocess.STDOUT)
-    except subprocess.CalledProcessError, exError:
-        print "%s: rrdtool update failed: %s" % \
-                    (getTimeStamp(), exError.output)
+        subprocess.check_output(strCmd, shell=True, \
+            stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as exError:
+        print("%s: rrdtool update failed: %s" % \
+            (getTimeStamp(), exError.output))
         return False
+
+    if debugOption and not verboseDebug:
+        print("database updated")
 
     return True
 ## end def
 
-def writeOutputDataFile(dData):
-    """Write node data items to the output data file, formatted as 
-       a Javascript file.  This file may then be requested and used by
-       by downstream clients, for instance, an HTML document.
-       Parameters:
-           dData - a dictionary containing the data to be written
+def writeOutputFile(dData):
+    """
+    Write sensor data items to the output data file, formatted as 
+    a Javascript file.  This file may then be requested and used by
+    by downstream clients, for instance, an HTML document.
+    Parameters:
+        dData - a dictionary containing the data to be written
                    to the output data file
-       Returns: True if successful, False otherwise
+        Returns: True if successful, False otherwise
     """
     # Write a JSON formatted file for use by html clients.  The following
     # data items are sent to the client file.
@@ -213,26 +222,29 @@ def writeOutputDataFile(dData):
     #    * The sensor values
 
     # Create a JSON formatted string from the sensor data.
-    sData = "[{\"period\":\"%s\", " % \
-           (chartUpdateInterval)
-    for key in dData:
-        sData += '\"%s\":\"%s\", ' % (key, dData[key])
-    sData = sData[:-2] + '}]\n'
+    try:
+        jsData = json.loads("{}")
+        for key in dData:
+            jsData.update({key:dData[key]})
+        jsData.update({"chartUpdateInterval": chartUpdateInterval})
+        sData = "[%s]" % json.dumps(jsData)
+    except Exception as exError:
+        print("%s writeOutputFile: %s" % (getTimeStamp(), exError))
+        return False
+
+    if verboseDebug:
+        print(sData)
 
     # Write the JSON formatted data to the output data file.
+
     try:
         fc = open(_OUTPUT_DATA_FILE, "w")
         fc.write(sData)
         fc.close()
-    except Exception, exError:
-        print "%s write output file failed: %s" % \
-              (getTimeStamp(), exError)
+    except Exception as exError:
+        print("%s write output file failed: %s" % \
+              (getTimeStamp(), exError))
         return False
-
-    if verboseDebug:
-        print sData[:-1]
-    if debugOption:
-        print "writing output data file: %d bytes" % len(sData)
 
     return True
 ## end def
@@ -240,27 +252,28 @@ def writeOutputDataFile(dData):
 def createGraph(fileName, dataItem, gLabel, gTitle, gStart,
                 lower=0, upper=0, trendLine=0, scaleFactor=1,
                 autoScale=True, alertLine=""):
-    """Uses rrdtool to create a graph of specified node data item.
-       Parameters:
-           fileName - name of file containing the graph
-           dataItem - data item to be graphed
-           gLabel - string containing a graph label for the data item
-           gTitle - string containing a title for the graph
-           gStart - beginning time of the graphed data
-           lower - lower bound for graph ordinate #NOT USED
-           upper - upper bound for graph ordinate #NOT USED
-           trendLine 
-                0, show only graph data
-                1, show only a trend line
-                2, show a trend line and the graph data
-           scaleFactor - amount to pre-scale the data before charting
-                the data [default=1]
-           autoScale - if True, then use vertical axis auto scaling
-                (lower and upper parameters must be zero)
-           alertLine - value for which to print a critical
-                low voltage alert line on the chart. If not provided
-                alert line will not be printed.
-       Returns: True if successful, False otherwise
+    """
+    Uses rrdtool to create a graph of specified sensor data item.
+    Parameters:
+        fileName - name of file containing the graph
+        dataItem - data item to be graphed
+        gLabel - string containing a graph label for the data item
+        gTitle - string containing a title for the graph
+        gStart - beginning time of the graphed data
+        lower - lower bound for graph ordinate #NOT USED
+        upper - upper bound for graph ordinate #NOT USED
+        trendLine 
+            0, show only graph data
+            1, show only a trend line
+            2, show a trend line and the graph data
+        scaleFactor - amount to pre-scale the data before charting
+            the data [default=1]
+        autoScale - if True, then use vertical axis auto scaling
+            (lower and upper parameters must be zero)
+        alertLine - value for which to print a critical
+            low voltage alert line on the chart. If not provided
+            alert line will not be printed.
+    Returns: True if successful, False otherwise
     """
     gPath = _CHARTS_DIRECTORY + fileName + ".png"
     trendWindow = { 'end-1day': 7200,
@@ -302,27 +315,28 @@ def createGraph(fileName, dataItem, gLabel, gTitle, gStart,
         strCmd += "HRULE:%s#FF0000:Critical\ Low\ Voltage " % (alertLine)
      
     if verboseDebug:
-        print "%s" % strCmd # DEBUG
+        print("%s" % strCmd) # DEBUG
     
     # Run the formatted rrdtool command as a subprocess.
     try:
         result = subprocess.check_output(strCmd, \
                      stderr=subprocess.STDOUT,   \
                      shell=True)
-    except subprocess.CalledProcessError, exError:
-        print "rrdtool graph failed: %s" % (exError.output)
+    except subprocess.CalledProcessError as exError:
+        print("rrdtool graph failed: %s" % (exError.output))
         return False
 
     if debugOption:
-        print "rrdtool graph: %s\n" % result,
+        print("rrdtool graph: %s" % result.decode('utf-8'))
     return True
 
 ## end def
 
 def generateGraphs():
-    """Generate graphs for display in html documents.
-       Parameters: none
-       Returns: nothing
+    """
+    Generate graphs for display in html documents.
+    Parameters: none
+    Returns: nothing
     """
 
     # 24 hour stock charts
@@ -381,12 +395,13 @@ def generateGraphs():
 ## end def
 
 def getCLarguments():
-    """Get command line arguments.  There are three possible arguments
-          -d turns on debug mode
-          -v turns on verbose debug mode
-          -p sets the sensor query period
-          -c sets the chart update period
-       Returns: nothing
+    """
+    Get command line arguments.  There are three possible arguments
+        -d turns on debug mode
+        -v turns on verbose debug mode
+        -p sets the sensor query period
+        -c sets the chart update period
+    Returns: nothing
     """
     global debugOption, verboseDebug, dataRequestInterval, chartUpdateInterval
 
@@ -401,36 +416,37 @@ def getCLarguments():
             try:
                 dataRequestInterval = abs(int(sys.argv[index + 1]))
             except:
-                print "invalid sensor query period"
+                print("invalid sensor query period")
                 exit(-1)
             index += 1
         elif sys.argv[index] == '-c':
             try:
                 chartUpdateInterval = abs(int(sys.argv[index + 1]))
             except:
-                print "invalid chart update period"
+                print("invalid chart update period")
                 exit(-1)
             index += 1
         else:
             cmd_name = sys.argv[0].split('/')
-            print "Usage: %s [-d | v] [-p seconds] [-c seconds]" \
-                  % cmd_name[-1]
+            print("Usage: %s [-d | v] [-p seconds] [-c seconds]" \
+                  % cmd_name[-1])
             exit(-1)
         index += 1
 ##end def
 
 def main():
-    """Handles timing of events and acts as executive routine managing
-       all other functions.
-       Parameters: none
-       Returns: nothing
+    """
+    Handles timing of events and acts as executive routine managing
+    all other functions.
+    Parameters: none
+    Returns: nothing
     """
     global dataRequestInterval
 
     signal.signal(signal.SIGTERM, terminateAgentProcess)
+    signal.signal(signal.SIGINT, terminateAgentProcess)
 
-    print '%s starting up node power agent process' % \
-                  (getTimeStamp())
+    print('%s starting up node power agent process' % getTimeStamp())
 
     # last time output JSON file updated
     lastDataRequestTime = -1
@@ -444,9 +460,9 @@ def main():
 
     ## Exit with error if rrdtool database does not exist.
     if not os.path.exists(_RRD_FILE):
-        print 'rrdtool database does not exist\n' \
-              'use createArednsigRrd script to ' \
-              'create rrdtool database\n'
+        print('rrdtool database does not exist\n' \
+              'use createPowerRrd script to ' \
+              'create rrdtool database\n')
         exit(1)
  
     ## main loop
@@ -454,8 +470,8 @@ def main():
 
         currentTime = time.time() # get current time in seconds
 
-        # Every web update interval request data from the aredn
-        # node and process the received data.
+        # Every data request interval read the sensors and process the
+        # data from the sensors.
         if currentTime - lastDataRequestTime > dataRequestInterval:
             lastDataRequestTime = currentTime
             dData = {}
@@ -466,17 +482,14 @@ def main():
  
             # If get data successful, write data to data files.
             if result:
-                result = writeOutputDataFile(dData)
-                pass
+                result = writeOutputFile(dData)
 
             # At the rrdtool database update interval, update the database.
-            if currentTime - lastDatabaseUpdateTime > \
-                    _DATABASE_UPDATE_INTERVAL:   
+            if result and (currentTime - lastDatabaseUpdateTime > \
+                           _DATABASE_UPDATE_INTERVAL):   
                 lastDatabaseUpdateTime = currentTime
                 ## Update the round robin database with the parsed data.
-                if result:
-                    updateDatabase(dData)
-                    pass
+                result = updateDatabase(dData)
 
         # At the chart generation interval, generate charts.
         if currentTime - lastChartUpdateTime > chartUpdateInterval:
@@ -490,10 +503,11 @@ def main():
         elapsedTime = time.time() - currentTime
         if debugOption:
             if result:
-                print "%s update successful:" % getTimeStamp(),
+                print("update successful: %6f sec\n"
+                      % elapsedTime)
             else:
-                print "%s update failed:" % getTimeStamp(),
-            print "%6f seconds processing time\n" % elapsedTime 
+                print("update failed: %6f sec\n"
+                      % elapsedTime)
         remainingTime = dataRequestInterval - elapsedTime
         if remainingTime > 0.0:
             time.sleep(remainingTime)
@@ -502,8 +516,4 @@ def main():
 ## end def
 
 if __name__ == '__main__':
-    try:
-        main()
-    except KeyboardInterrupt:
-        print '\n',
-        terminateAgentProcess('KeyboardInterrupt','Module')
+    main()
