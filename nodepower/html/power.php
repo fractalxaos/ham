@@ -55,6 +55,9 @@ img.chart {
 
 # Define global constants
 
+# debug mode
+define("_DEBUG", false);
+
 # round robin database file
 define("_RRD_FILE", str_replace("public_html/power/power.php",
                                 "database/powerData.rrd",
@@ -67,8 +70,6 @@ define("_CHART_DIRECTORY", str_replace("power.php",
 define("_CHART_WIDTH", 600);
 # standard chart height in pixels
 define("_CHART_HEIGHT", 150);
-# debug mode
-define("_DEBUG", false);
 
 # Set error handling modes.
 error_reporting(E_ALL);
@@ -101,26 +102,11 @@ if ($beginDateEp > $endDateEp) {
           date('m / d / Y', $firstDP) . " and " . 
           date('m / d / Y', $lastDP) . ".</p>";
 } else {
-    # Generate charts from validated user supplied dates.
-    if (_DEBUG) {
-        echo "<p>Date range: " . $beginDateEp . " thru " .
-              $endDateEp . "</p>";
-    }
-    createChart('custom_current', 'CUR', 'Amps', 
-                'Current', $beginDateEp, $endDateEp,
-                 0, 0, 2, false);
-    createChart('custom_voltage', 'VOLT', 'Volts', 
-                'Voltage', $beginDateEp, $endDateEp,
-                 0, 0, 2, false);
-    createChart('custom_power', 'PWR', 'Watts', 
-                'Power', $beginDateEp, $endDateEp,
-                 0, 0, 2, false);
-    createChart('custom_battemp', 'BTMP', 'deg\ F', 
-                'Battery\ Temperature', $beginDateEp, $endDateEp,
-                 0, 0, 2, false);
-    createChart('custom_ambtemp', 'ATMP', 'deg\ F', 
-                'Ambient\ Temperature', $beginDateEp, $endDateEp,
-                 0, 0, 2, false);
+    generateCharts($beginDateEp, $endDateEp);
+    sendChartsToClient();
+}
+
+function sendChartsToClient() {
     # Send html commands to client browser.
     echo "<div class=\"chartContainer\">" .
          "<img class=\"chart\" src=\"dynamic/custom_current.png\">" .
@@ -137,6 +123,29 @@ if ($beginDateEp > $endDateEp) {
     echo "<div class=\"chartContainer\">" .
          "<img class=\"chart\" src=\"dynamic/custom_ambtemp.png\">" .
          "</div>";
+}
+
+function generateCharts($beginDateEp, $endDateEp) {
+    # Generate charts from validated user supplied dates.
+    if (_DEBUG) {
+        echo "<p>Date range: " . $beginDateEp . " thru " .
+              $endDateEp . "</p>";
+    }
+    createChart('custom_current', 'CUR', 'Amps', 
+                'Current', $beginDateEp, $endDateEp,
+                 0, 0, 2, false);
+    createChart('custom_voltage', 'VOLT', 'Volts', 
+                'Voltage', $beginDateEp, $endDateEp,
+                 0, 0, 0, false);
+    createChart('custom_power', 'PWR', 'Watts', 
+                'Power', $beginDateEp, $endDateEp,
+                 0, 0, 2, false);
+    createChart('custom_battemp', 'BTMP', 'deg\ F', 
+                'Battery\ Temperature', $beginDateEp, $endDateEp,
+                 0, 0, 0, false);
+    createChart('custom_ambtemp', 'ATMP', 'deg\ F', 
+                'Ambient\ Temperature', $beginDateEp, $endDateEp,
+                 0, 0, 0, false);
 }
 
 function createChart($chartFile, $dataItem, $label, $title, $begin,

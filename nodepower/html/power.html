@@ -7,7 +7,6 @@
 <title>Node Power</title>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="shortcut icon" href="/favicon.png" type="image/x-icon" />
 <style>
 body {
     background-image: url("static/chalk.jpg");
@@ -387,7 +386,7 @@ function displayData(dataItem) {
     battemp_t.innerHTML = battemp.toFixed(2).toString();
     ambtemp_t.innerHTML = ambtemp.toFixed(2).toString();
 
-    period_t.innerHTML = dataItem.period / 60;
+    period_t.innerHTML = dataItem.chartUpdateInterval / 60;
     status_t.innerHTML = "online";
     status_t.style.color = "green";
 }
