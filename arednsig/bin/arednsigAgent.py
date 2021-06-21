@@ -1,4 +1,4 @@
-#!/usr/bin/python2 -u
+#!/usr/bin/python3 -u
 # The -u option above turns off block buffering of python output. This 
 # assures that each error message gets individually printed to the log file.
 #
@@ -36,24 +36,30 @@
 #   * v22 released 31 Mar 2020 by J L Owrey; upgraded for compatibility with
 #     Aredn firmware version 3.20.3.0.  This agent now downloads the node's
 #     status page and parsed the signal data from the html.
+#   * v23 released 11 Jun 2021 by J L Owrey; remove unused code.
+#   * v24 released 14 Jun 2021 by J L Owrey; minor revisions
 #
 #2345678901234567890123456789012345678901234567890123456789012345678901234567890
 
 import os
-import urllib2
 import sys
 import signal
 import subprocess
 import multiprocessing
 import time
+import json
+from urllib.request import urlopen
+
+   ### ENVIRONMENT ###
 
 _USER = os.environ['USER']
+_SERVER_MODE = "primary"
 
    ### DEFAULT AREDN NODE URL ###
 
 # set url of the aredn node
 
-_DEFAULT_AREDN_NODE_URL = "http://localnode:8080/cgi-bin/status"
+_DEFAULT_AREDN_NODE_URL = "http://localnode.local.mesh/cgi-bin/status"
 
     ### FILE AND FOLDER LOCATIONS ###
 
@@ -62,30 +68,26 @@ _DOCROOT_PATH = "/home/%s/public_html/arednsig/" % _USER
 # folder for charts and output data file
 _CHARTS_DIRECTORY = _DOCROOT_PATH + "dynamic/"
 # location of data output file
-_OUTPUT_DATA_FILE = _DOCROOT_PATH + "dynamic/arednsigOutputData.js"
-# dummy output data file
-_DUMMY_OUTPUT_FILE = _DOCROOT_PATH + "dynamic/nodeOnline.js"
+_OUTPUT_DATA_FILE = _DOCROOT_PATH + "dynamic/arednsigData.js"
 # database that stores node data
 _RRD_FILE = "/home/%s/database/arednsigData.rrd" % _USER
 
     ### GLOBAL CONSTANTS ###
 
+# max number of failed data requests allowed
+_MAX_FAILED_DATA_REQUESTS = 2
 # AREDN node data request interval in seconds
 _DEFAULT_DATA_REQUEST_INTERVAL = 60
+# number seconds to wait for a response to HTTP request
+_HTTP_REQUEST_TIMEOUT = 5
+
 # chart update interval in seconds
 _CHART_UPDATE_INTERVAL = 600
-
-# number seconds to wait for a response to HTTP request
-_HTTP_REQUEST_TIMEOUT = 10
-# max number of failed data requests allowed
-_MAX_FAILED_DATA_REQUESTS = 0
 # standard chart width in pixels
 _CHART_WIDTH = 600
 # standard chart height in pixels
 _CHART_HEIGHT = 150
 # Set this to True only if this server is intended to relay raw
-# node data to a mirror server.
-_RELAY_SERVER = False
 
    ### GLOBAL VARIABLES ###
 
@@ -107,8 +109,6 @@ arednNodeUrl = _DEFAULT_AREDN_NODE_URL
 dataRequestInterval = _DEFAULT_DATA_REQUEST_INTERVAL
 # chart update interval
 chartUpdateInterval = _CHART_UPDATE_INTERVAL
-# last node request time
-lastDataPointTime = -1
 
   ###  PRIVATE METHODS  ###
 
@@ -122,7 +122,7 @@ def getTimeStamp():
 ##end def
 
 def getEpochSeconds(sTime):
-    """Convert the time stamp supplied in the weather data string
+    """Convert the time stamp supplied in the supplied string
        to seconds since 1/1/1970 00:00:00.
        Parameters: 
            sTime - the time stamp to be converted must be formatted
@@ -131,8 +131,8 @@ def getEpochSeconds(sTime):
     """
     try:
         t_sTime = time.strptime(sTime, '%m/%d/%Y %H:%M:%S')
-    except Exception, exError:
-        print '%s getEpochSeconds: %s' % (getTimeStamp(), exError)
+    except Exception as exError:
+        print('%s getEpochSeconds: %s' % (getTimeStamp(), exError))
         return None
     tSeconds = int(time.mktime(t_sTime))
     return tSeconds
@@ -150,12 +150,10 @@ def setStatusToOffline():
     # Inform downstream clients by removing output data file.
     if os.path.exists(_OUTPUT_DATA_FILE):
        os.remove(_OUTPUT_DATA_FILE)
-    if os.path.exists(_DUMMY_OUTPUT_FILE):
-       os.remove(_DUMMY_OUTPUT_FILE)
     # If the aredn node was previously online, then send
     # a message that we are now offline.
     if nodeOnline:
-        print '%s aredn node offline' % getTimeStamp()
+        print('%s aredn node offline' % getTimeStamp())
     nodeOnline = False
 ##end def
 
@@ -170,16 +168,13 @@ def terminateAgentProcess(signal, frame):
     # Inform downstream clients by removing output data file.
     if os.path.exists(_OUTPUT_DATA_FILE):
        os.remove(_OUTPUT_DATA_FILE)
-    if os.path.exists(_DUMMY_OUTPUT_FILE):
-       os.remove(_DUMMY_OUTPUT_FILE)
-    print '%s terminating arednsig agent process' % \
-              (getTimeStamp())
+    print('%s terminating arednsig agent process' % getTimeStamp())
     sys.exit(0)
 ##end def
 
   ###  PUBLIC METHODS  ###
 
-def getArednNodeData():
+def getNodeData():
     """Send http request to aredn node.  The response from the
        node contains the node signal data as unformatted ascii text.
        Parameters: none
@@ -187,44 +182,51 @@ def getArednNodeData():
                 or None if not successful
     """
     try:
-        conn = urllib2.urlopen(arednNodeUrl, timeout=_HTTP_REQUEST_TIMEOUT)
+        currentTime = time.time()
 
-        # Format received data into a single string.
-        content = ""
-        for line in conn:
-            content += line.strip()
-        del conn
+        response = urlopen(arednNodeUrl, timeout=_HTTP_REQUEST_TIMEOUT)
 
-    except Exception, exError:
+        if debugOption:
+            requestTime = time.time() - currentTime
+            print("http request: %.4f seconds" % requestTime)
+
+        content = response.read().decode('utf-8')
+        content = content.replace('\n', '')
+        content = content.replace('\r', '')
+        if content == "":
+            raise Exception("empty response")
+        
+    except Exception as exError:
         # If no response is received from the device, then assume that
         # the device is down or unavailable over the network.  In
         # that case return None to the calling function.
-        print "%s http error: %s" % (getTimeStamp(), exError)
+        print("%s getNodeData: %s" % (getTimeStamp(), exError))
         return None
+    ##end try
 
     if verboseDebug:
-        print "http request successful: %d bytes" % len(content)
-
+        print(content)
+   
     return content
 ##end def
 
-def parseNodeData(sData, dData):
-    """Parse the node  signal data JSON string from the aredn node
+def parseDataString(sData, dData):
+    """Parse the node signal data JSON string from the aredn node
        into its component parts.  
        Parameters:
            sData - the string containing the data to be parsed
            dData - a dictionary object to contain the parsed data items
        Returns: True if successful, False otherwise
     """
-    
-
+ 
     try:
         strBeginSearch = '<nobr>Signal/Noise/Ratio</nobr></th>' \
                          '<td valign=middle><nobr><big><b>'
-        strEndSearch = 'dB'
+        strEndSearch = 'dB</b>'
 
         iBeginIndex = sData.find(strBeginSearch) + len(strBeginSearch)
         iEndIndex = sData.find(strEndSearch, iBeginIndex)
+        #print("search params: %d, %d" % (iBeginIndex, iEndIndex))
 
         if iBeginIndex == -1 or iEndIndex == -1:
             raise Exception("signal data not found in status page")
@@ -234,17 +236,14 @@ def parseNodeData(sData, dData):
         lsnr = snr.split('/')
 
         dData['time'] = getEpochSeconds(getTimeStamp())
-
         dData['signal'] = lsnr[0]
         dData['noise'] = lsnr[1]
         dData['snr'] = lsnr[2]
     
-    except Exception, exError:
-        print "%s parse failed: %s" % (getTimeStamp(), exError)
+    except Exception as exError:
+        print("%s parse failed: %s" % (getTimeStamp(), exError))
         return False
 
-    if verboseDebug:
-        print "parse successful"
     return True
 ##end def
 
@@ -264,21 +263,24 @@ def updateDatabase(dData):
              '0', '0', '0')
 
     if verboseDebug:
-        print "%s" % strCmd # DEBUG
+        print("%s" % strCmd) # DEBUG
 
     # Run the command as a subprocess.
     try:
         subprocess.check_output(strCmd, shell=True,  \
                              stderr=subprocess.STDOUT)
-    except subprocess.CalledProcessError, exError:
-        print "%s: rrdtool update failed: %s" % \
-                    (getTimeStamp(), exError.output)
+    except subprocess.CalledProcessError as exError:
+        print("%s: rrdtool update failed: %s" % \
+                    (getTimeStamp(), exError.output))
         return False
+
+    if debugOption and not verboseDebug:
+        print("database updated")
 
     return True
 ##end def
 
-def writeOutputDataFile(sData, dData):
+def writeOutputFile(dData):
     """Write node data items to the output data file, formatted as 
        a Javascript file.  This file may then be accessed and used by
        by downstream clients, for instance, in HTML documents.
@@ -293,28 +295,29 @@ def writeOutputDataFile(sData, dData):
     #    * The data request interval
     lastUpdate = time.strftime( "%m.%d.%Y %T", 
                                 time.localtime(dData['time']) )
-    sDate = "[{\"date\":\"%s\",\"period\":\"%s\"}]" % \
-           (lastUpdate, chartUpdateInterval)
+
+    # Format data into a JSON string.
     try:
-        fc = open(_DUMMY_OUTPUT_FILE, "w")
-        fc.write(sDate)
-        fc.close()
-    except Exception, exError:
-        print "%s write node file failed: %s" % (getTimeStamp(), exError)
+        jsData = json.loads("{}")
+        jsData.update({"date": lastUpdate})
+        jsData.update({"chartUpdateInterval": chartUpdateInterval})
+        jsData.update({"dataRequestInterval": dataRequestInterval})
+        jsData.update({"serverMode": _SERVER_MODE})
+        sData = "[%s]" % json.dumps(jsData)
+    except Exception as exError:
+        print("%s writeOutputFile: %s" % (getTimeStamp(), exError))
         return False
 
-    if _RELAY_SERVER:
-        # Write the entire node data response to the output data file.
-        try:
-            fc = open(_OUTPUT_DATA_FILE, "w")
-            fc.write(sData)
-            fc.close()
-        except Exception, exError:
-            print "%s write output file failed: %s" % \
-                  (getTimeStamp(), exError)
-            return False
-        if verboseDebug:
-            print "write output data file: %d bytes" % len(sData)
+    if verboseDebug:
+        print(sData)
+
+    try:
+        fc = open(_OUTPUT_DATA_FILE, "w")
+        fc.write(sData)
+        fc.close()
+    except Exception as exError:
+        print("%s write output file failed: %s" % (getTimeStamp(), exError))
+        return False
 
     return True
 ## end def
@@ -335,7 +338,7 @@ def setNodeStatus(updateSuccess):
         # Set status and send a message to the log if the node was
         # previously offline and is now online.
         if not nodeOnline:
-            print '%s aredn node online' % getTimeStamp()
+            print('%s aredn node online' % getTimeStamp())
             nodeOnline = True
     else:
         # The last attempt failed, so update the failed attempts
@@ -394,27 +397,27 @@ def createGraph(fileName, dataItem, gLabel, gTitle, gStart,
     if addTrend == 0:
         strCmd += "LINE1:dSeries#0400ff "
     elif addTrend == 1:
-        strCmd += "CDEF:smoothed=dSeries,%s,TREND LINE3:smoothed#ff0000 " \
+        strCmd += "CDEF:smoothed=dSeries,%s,TREND LINE2:smoothed#006600 " \
                   % trendWindow[gStart]
     elif addTrend == 2:
         strCmd += "LINE1:dSeries#0400ff "
-        strCmd += "CDEF:smoothed=dSeries,%s,TREND LINE3:smoothed#ff0000 " \
+        strCmd += "CDEF:smoothed=dSeries,%s,TREND LINE2:smoothed#006600 " \
                   % trendWindow[gStart]
      
     if verboseDebug:
-        print "%s" % strCmd # DEBUG
+        print("%s" % strCmd) # DEBUG
     
     # Run the formatted rrdtool command as a subprocess.
     try:
         result = subprocess.check_output(strCmd, \
                      stderr=subprocess.STDOUT,   \
                      shell=True)
-    except subprocess.CalledProcessError, exError:
-        print "rrdtool graph failed: %s" % (exError.output)
+    except subprocess.CalledProcessError as exError:
+        print("rrdtool graph failed: %s" % (exError.output))
         return False
 
     if debugOption:
-        print "rrdtool graph: %s\n" % result,
+        print("rrdtool graph: %s\n" % result.decode('utf-8'), end='')
     return True
 
 ##end def
@@ -456,7 +459,7 @@ def generateGraphs():
                 'SNR\ -\ Past\ Year', 'end-12months', 0, 0, 2, autoScale)
 
     if debugOption:
-        #print # print a blank line to improve readability when in debug mode
+        #print() # print a blank line to improve readability when in debug mode
         pass
 ##end def
 
@@ -482,15 +485,17 @@ def getCLarguments():
             try:
                 dataRequestInterval = abs(int(sys.argv[index + 1]))
             except:
-                print "invalid polling period"
+                print("invalid polling period")
                 exit(-1)
             index += 1
         elif sys.argv[index] == '-u':
             arednNodeUrl = sys.argv[index + 1]
+            if arednNodeUrl.find('http://') < 0:
+                arednNodeUrl = 'http://' + arednNodeUrl
             index += 1
         else:
             cmd_name = sys.argv[0].split('/')
-            print "Usage: %s [-d] [-v] [-p seconds] [-u url]" % cmd_name[-1]
+            print("Usage: %s [-d] [-v] [-p seconds] [-u url]" % cmd_name[-1])
             exit(-1)
         index += 1
 ##end def
@@ -504,9 +509,10 @@ def main():
     global dataRequestInterval
 
     signal.signal(signal.SIGTERM, terminateAgentProcess)
+    signal.signal(signal.SIGINT, terminateAgentProcess)
 
-    print '%s starting up arednsig agent process' % \
-                  (getTimeStamp())
+    print('%s starting up arednsig agent process' % \
+                  (getTimeStamp()))
 
     # last time output JSON file updated
     lastDataRequestTime = -1
@@ -520,9 +526,9 @@ def main():
 
     ## Exit with error if rrdtool database does not exist.
     if not os.path.exists(_RRD_FILE):
-        print 'rrdtool database does not exist\n' \
+        print('rrdtool database does not exist\n' \
               'use createArednsigRrd script to ' \
-              'create rrdtool database\n'
+              'create rrdtool database\n')
         exit(1)
  
     ## main loop
@@ -538,21 +544,23 @@ def main():
             result = True
 
             # Get the data string from the device.
-            sData = getArednNodeData()
+            sData = getNodeData()
+
             # If the first http request fails, try one more time.
             if sData == None:
                 result = False
-
+            
             # If successful parse the data.
             if result:
-                result = parseNodeData(sData, dData)
-           
-            # If parse successful, write data to data files.
+                result = parseDataString(sData, dData)
+
+            # If parse successful, write data output data file.
+            if result:
+                writeOutputFile(dData)
+
+            # If write output file successful, update the database.
             if result:
                 result = updateDatabase(dData)
-
-            if result:
-                writeOutputDataFile(sData, dData)
 
             # Set the node status to online or offline depending on the
             # success or failure of the above operations.
@@ -571,10 +579,10 @@ def main():
         elapsedTime = time.time() - currentTime
         if debugOption:
             if result:
-                print "%s update successful:" % getTimeStamp(),
+                print("%s update successful:" % getTimeStamp(), end='')
             else:
-                print "%s update failed:" % getTimeStamp(),
-            print "%6f seconds processing time\n" % elapsedTime 
+                print("%s update failed:" % getTimeStamp(), end='')
+            print(" %6f seconds\n" % elapsedTime)
         remainingTime = dataRequestInterval - elapsedTime
         if remainingTime > 0.0:
             time.sleep(remainingTime)
@@ -583,8 +591,5 @@ def main():
 ## end def
 
 if __name__ == '__main__':
-    try:
-        main()
-    except KeyboardInterrupt:
-        print '\n',
-        terminateAgentProcess('KeyboardInterrupt','Module')
+    main()
+

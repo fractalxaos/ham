@@ -5,13 +5,11 @@
 # whether your local network uses a domain name server.
 #
 
+AGENT_NAME="[a]rednsigAgent.py"
+SOURCE_URL="http://localnode.local.mesh/cgi-bin/status"
+
 APP_PATH="/home/$USER/bin"
 LOG_PATH="/home/$USER/log"
-
-AGENT_NAME="[a]rednsigAgent.py"
-
-#NODE_URL="http://localnode:8080/cgi-bin/signal.json"
-NODE_URL="http://192.168.1.30:8080/cgi-bin/status"
 
 # Changing the value overides the default data request interval hardcoded
 # in the agent script.  '60' is the default. Value is in seconds.
@@ -26,7 +24,11 @@ if [ -n "$PROCESS_ID" ]; then
 else
   printf "starting up arednsig agent\n"
   cd $APP_PATH
-  $(./$AGENT_NAME -u $NODE_URL -p $POLLING_INTERVAL >> \
- $LOG_PATH/arednsigAgent.log 2>&1 &)
+  if [ "$1" != "" ]; then
+    ./$AGENT_NAME $1 -u $SOURCE_URL -p $POLLING_INTERVAL
+  else
+    ./$AGENT_NAME -u $SOURCE_URL -p $POLLING_INTERVAL >> \
+      $LOG_PATH/arednsigAgent.log 2>&1 &
+  fi
 fi
 

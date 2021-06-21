@@ -1,5 +1,5 @@
 #!/bin/bash
-# Stop the radmon agent process and clean up environment.
+# Stop the arednsig agent process.
 
 AGENT_NAME="[a]rednsigAgent.py"
 
