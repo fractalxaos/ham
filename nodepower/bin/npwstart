@@ -16,7 +16,10 @@ if [ -n "$PROCESS_ID" ]; then
 else
   printf "starting up node agent\n"
   cd $APP_PATH
-  $(./$AGENT_NAME >> \
- $LOG_PATH/npwAgent.log 2>&1 &)
+  if [ "$1" != "" ]; then
+    ./$AGENT_NAME $1
+  else
+    ./$AGENT_NAME >> $LOG_PATH/npwAgent.log 2>&1 &
+  fi
 fi
 

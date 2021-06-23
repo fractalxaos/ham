@@ -86,15 +86,13 @@ _AVERAGE_LINE_COLOR = '#006600'
    ### GLOBAL VARIABLES ###
 
 # debug output options
-debugOption = False
-verboseDebug = False
+debugMode = False
+verboseMode = False
 
 # frequency of data requests to sensors
 dataRequestInterval = _DEFAULT_DATA_REQUEST_INTERVAL
 # how often charts get updated
 chartUpdateInterval = _CHART_UPDATE_INTERVAL
-# last node request time
-lastDataPointTime = -1
 
 # Define each sensor.  This also initialzes each sensor.
 pwr = ina260.ina260(_PWR_SENSOR_ADDR, _BUS_SEL)
@@ -170,41 +168,6 @@ def getSensorData(dData):
     return True
 ## end def
 
-def updateDatabase(dData):
-    """
-    Update the rrdtool database by executing an rrdtool system command.
-    Format the command using the data extracted from the sensors.
-    Parameters: dData - dictionary object containing data items to be
-                        written to the rr database file
-    Returns: True if successful, False otherwise
-    """
- 
-    epochTime = getEpochSeconds(dData['time'])
-
-    # Format the rrdtool update command.
-    strFmt = "rrdtool update %s %s:%s:%s:%s:%s:%s"
-    strCmd = strFmt % (_RRD_FILE, epochTime, dData['current'], \
-             dData['voltage'], dData['power'], dData['battemp'], \
-             dData['ambtemp'])
-
-    if verboseDebug:
-        print("%s" % strCmd) # DEBUG
-
-    # Run the command as a subprocess.
-    try:
-        subprocess.check_output(strCmd, shell=True, \
-            stderr=subprocess.STDOUT)
-    except subprocess.CalledProcessError as exError:
-        print("%s: rrdtool update failed: %s" % \
-            (getTimeStamp(), exError.output))
-        return False
-
-    if debugOption and not verboseDebug:
-        print("database updated")
-
-    return True
-## end def
-
 def writeOutputFile(dData):
     """
     Write sensor data items to the output data file, formatted as 
@@ -222,8 +185,8 @@ def writeOutputFile(dData):
     #    * The sensor values
 
     # Create a JSON formatted string from the sensor data.
+    jsData = json.loads("{}")
     try:
-        jsData = json.loads("{}")
         for key in dData:
             jsData.update({key:dData[key]})
         jsData.update({"chartUpdateInterval": chartUpdateInterval})
@@ -232,7 +195,7 @@ def writeOutputFile(dData):
         print("%s writeOutputFile: %s" % (getTimeStamp(), exError))
         return False
 
-    if verboseDebug:
+    if debugMode:
         print(sData)
 
     # Write the JSON formatted data to the output data file.
@@ -245,6 +208,41 @@ def writeOutputFile(dData):
         print("%s write output file failed: %s" % \
               (getTimeStamp(), exError))
         return False
+
+    return True
+## end def
+
+def updateDatabase(dData):
+    """
+    Update the rrdtool database by executing an rrdtool system command.
+    Format the command using the data extracted from the sensors.
+    Parameters: dData - dictionary object containing data items to be
+                        written to the rr database file
+    Returns: True if successful, False otherwise
+    """
+ 
+    epochTime = getEpochSeconds(dData['time'])
+
+    # Format the rrdtool update command.
+    strFmt = "rrdtool update %s %s:%s:%s:%s:%s:%s"
+    strCmd = strFmt % (_RRD_FILE, epochTime, dData['current'], \
+             dData['voltage'], dData['power'], dData['battemp'], \
+             dData['ambtemp'])
+
+    if debugMode:
+        print("%s" % strCmd) # DEBUG
+
+    # Run the command as a subprocess.
+    try:
+        subprocess.check_output(strCmd, shell=True, \
+            stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as exError:
+        print("%s: rrdtool update failed: %s" % \
+            (getTimeStamp(), exError.output))
+        return False
+
+    if verboseMode and not debugMode:
+        print("database updated")
 
     return True
 ## end def
@@ -314,8 +312,8 @@ def createGraph(fileName, dataItem, gLabel, gTitle, gStart,
     if alertLine != "":
         strCmd += "HRULE:%s#FF0000:Critical\ Low\ Voltage " % (alertLine)
      
-    if verboseDebug:
-        print("%s" % strCmd) # DEBUG
+    if debugMode:
+        print("%s\n" % strCmd) # DEBUG
     
     # Run the formatted rrdtool command as a subprocess.
     try:
@@ -326,7 +324,7 @@ def createGraph(fileName, dataItem, gLabel, gTitle, gStart,
         print("rrdtool graph failed: %s" % (exError.output))
         return False
 
-    if debugOption:
+    if verboseMode and not debugMode:
         print("rrdtool graph: %s" % result.decode('utf-8'))
     return True
 
@@ -398,20 +396,20 @@ def getCLarguments():
     """
     Get command line arguments.  There are three possible arguments
         -d turns on debug mode
-        -v turns on verbose debug mode
+        -v turns on verbose mode
         -p sets the sensor query period
         -c sets the chart update period
     Returns: nothing
     """
-    global debugOption, verboseDebug, dataRequestInterval, chartUpdateInterval
+    global debugMode, verboseMode, dataRequestInterval, chartUpdateInterval
 
     index = 1
     while index < len(sys.argv):
-        if sys.argv[index] == '-d':
-            debugOption = True
-        elif sys.argv[index] == '-v':
-            debugOption = True
-            verboseDebug = True
+        if sys.argv[index] == '-v':
+            verboseMode = True
+        elif sys.argv[index] == '-d':
+            debugMode = True
+            verboseMode = True
         elif sys.argv[index] == '-p':
             try:
                 dataRequestInterval = abs(int(sys.argv[index + 1]))
@@ -475,7 +473,6 @@ def main():
         if currentTime - lastDataRequestTime > dataRequestInterval:
             lastDataRequestTime = currentTime
             dData = {}
-            result = True
 
             # Get the data from the sensors.
             result =getSensorData(dData)
@@ -501,7 +498,7 @@ def main():
         # the next update interval.
 
         elapsedTime = time.time() - currentTime
-        if debugOption:
+        if verboseMode:
             if result:
                 print("update successful: %6f sec\n"
                       % elapsedTime)
