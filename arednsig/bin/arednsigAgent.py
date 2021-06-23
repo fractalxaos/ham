@@ -59,7 +59,7 @@ _SERVER_MODE = "primary"
 
 # set url of the aredn node
 
-_DEFAULT_AREDN_NODE_URL = "http://localnode.local.mesh/cgi-bin/status"
+_DEFAULT_AREDN_NODE_URL = "{your AREDN mesh node url"
 
     ### FILE AND FOLDER LOCATIONS ###
 
@@ -92,8 +92,8 @@ _CHART_HEIGHT = 150
    ### GLOBAL VARIABLES ###
 
 # turn on or off of verbose debugging information
-debugOption = False
-verboseDebug = False
+verboseMode = False
+debugMode = False
 
 # The following two items are used for detecting system faults
 # and aredn node online or offline status.
@@ -174,19 +174,19 @@ def terminateAgentProcess(signal, frame):
 
   ###  PUBLIC METHODS  ###
 
-def getNodeData():
+def getNodeData(dData):
     """Send http request to aredn node.  The response from the
        node contains the node signal data as unformatted ascii text.
        Parameters: none
-       Returns: a string containing the node signal data if successful,
-                or None if not successful
+       Returns: True if successful,
+                or False if not successful
     """
     try:
         currentTime = time.time()
 
         response = urlopen(arednNodeUrl, timeout=_HTTP_REQUEST_TIMEOUT)
 
-        if debugOption:
+        if verboseMode:
             requestTime = time.time() - currentTime
             print("http request: %.4f seconds" % requestTime)
 
@@ -201,16 +201,18 @@ def getNodeData():
         # the device is down or unavailable over the network.  In
         # that case return None to the calling function.
         print("%s getNodeData: %s" % (getTimeStamp(), exError))
-        return None
+        return False
     ##end try
 
-    if verboseDebug:
+    if debugMode:
         print(content)
-   
-    return content
+
+    dData['content'] = content
+
+    return True
 ##end def
 
-def parseDataString(sData, dData):
+def parseDataString(dData):
     """Parse the node signal data JSON string from the aredn node
        into its component parts.  
        Parameters:
@@ -218,7 +220,7 @@ def parseDataString(sData, dData):
            dData - a dictionary object to contain the parsed data items
        Returns: True if successful, False otherwise
     """
- 
+    sData = dData.pop('content')
     try:
         strBeginSearch = '<nobr>Signal/Noise/Ratio</nobr></th>' \
                          '<td valign=middle><nobr><big><b>'
@@ -247,39 +249,6 @@ def parseDataString(sData, dData):
     return True
 ##end def
 
-def updateDatabase(dData):
-    """
-    Update the rrdtool database by executing an rrdtool system command.
-    Format the command using the data extracted from the aredn node
-    response.   
-    Parameters: dData - dictionary object containing data items to be
-                        written to the rr database file
-    Returns: True if successful, False otherwise
-    """
-    # Format the rrdtool update command.
-    strFmt = "rrdtool update %s %s:%s:%s:%s:%s:%s:%s:%s"
-    strCmd = strFmt % (_RRD_FILE, dData['time'], dData['signal'], \
-             dData['noise'], dData['snr'], '0', \
-             '0', '0', '0')
-
-    if verboseDebug:
-        print("%s" % strCmd) # DEBUG
-
-    # Run the command as a subprocess.
-    try:
-        subprocess.check_output(strCmd, shell=True,  \
-                             stderr=subprocess.STDOUT)
-    except subprocess.CalledProcessError as exError:
-        print("%s: rrdtool update failed: %s" % \
-                    (getTimeStamp(), exError.output))
-        return False
-
-    if debugOption and not verboseDebug:
-        print("database updated")
-
-    return True
-##end def
-
 def writeOutputFile(dData):
     """Write node data items to the output data file, formatted as 
        a Javascript file.  This file may then be accessed and used by
@@ -297,8 +266,8 @@ def writeOutputFile(dData):
                                 time.localtime(dData['time']) )
 
     # Format data into a JSON string.
+    jsData = json.loads("{}")
     try:
-        jsData = json.loads("{}")
         jsData.update({"date": lastUpdate})
         jsData.update({"chartUpdateInterval": chartUpdateInterval})
         jsData.update({"dataRequestInterval": dataRequestInterval})
@@ -308,7 +277,7 @@ def writeOutputFile(dData):
         print("%s writeOutputFile: %s" % (getTimeStamp(), exError))
         return False
 
-    if verboseDebug:
+    if debugMode:
         print(sData)
 
     try:
@@ -321,6 +290,39 @@ def writeOutputFile(dData):
 
     return True
 ## end def
+
+def updateDatabase(dData):
+    """
+    Update the rrdtool database by executing an rrdtool system command.
+    Format the command using the data extracted from the aredn node
+    response.   
+    Parameters: dData - dictionary object containing data items to be
+                        written to the rr database file
+    Returns: True if successful, False otherwise
+    """
+    # Format the rrdtool update command.
+    strFmt = "rrdtool update %s %s:%s:%s:%s:%s:%s:%s:%s"
+    strCmd = strFmt % (_RRD_FILE, dData['time'], dData['signal'], \
+             dData['noise'], dData['snr'], '0', \
+             '0', '0', '0')
+
+    if debugMode:
+        print("%s" % strCmd) # DEBUG
+
+    # Run the command as a subprocess.
+    try:
+        subprocess.check_output(strCmd, shell=True,  \
+                             stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as exError:
+        print("%s: rrdtool update failed: %s" % \
+                    (getTimeStamp(), exError.output))
+        return False
+
+    if verboseMode and not debugMode:
+        print("database updated")
+
+    return True
+##end def
 
 def setNodeStatus(updateSuccess):
     """Detect if aredn node is offline or not available on
@@ -404,7 +406,7 @@ def createGraph(fileName, dataItem, gLabel, gTitle, gStart,
         strCmd += "CDEF:smoothed=dSeries,%s,TREND LINE2:smoothed#006600 " \
                   % trendWindow[gStart]
      
-    if verboseDebug:
+    if debugMode:
         print("%s" % strCmd) # DEBUG
     
     # Run the formatted rrdtool command as a subprocess.
@@ -416,7 +418,7 @@ def createGraph(fileName, dataItem, gLabel, gTitle, gStart,
         print("rrdtool graph failed: %s" % (exError.output))
         return False
 
-    if debugOption:
+    if verboseMode:
         print("rrdtool graph: %s\n" % result.decode('utf-8'), end='')
     return True
 
@@ -458,7 +460,7 @@ def generateGraphs():
     createGraph('12m_snr', 'SNR', 'dB', 
                 'SNR\ -\ Past\ Year', 'end-12months', 0, 0, 2, autoScale)
 
-    if debugOption:
+    if verboseMode:
         #print() # print a blank line to improve readability when in debug mode
         pass
 ##end def
@@ -471,16 +473,16 @@ def getCLarguments():
           -u sets the url of the aredn nodeing device
        Returns: nothing
     """
-    global debugOption, verboseDebug, dataRequestInterval, \
+    global verboseMode, debugMode, dataRequestInterval, \
            arednNodeUrl
 
     index = 1
     while index < len(sys.argv):
-        if sys.argv[index] == '-d':
-            debugOption = True
-        elif sys.argv[index] == '-v':
-            debugOption = True
-            verboseDebug = True
+        if sys.argv[index] == '-v':
+            verboseMode = True
+        elif sys.argv[index] == '-d':
+            verboseMode = True
+            debugMode = True
         elif sys.argv[index] == '-p':
             try:
                 dataRequestInterval = abs(int(sys.argv[index + 1]))
@@ -541,18 +543,13 @@ def main():
         if currentTime - lastDataRequestTime > dataRequestInterval:
             lastDataRequestTime = currentTime
             dData = {}
-            result = True
 
             # Get the data string from the device.
-            sData = getNodeData()
+            result = getNodeData(dData)
 
-            # If the first http request fails, try one more time.
-            if sData == None:
-                result = False
-            
             # If successful parse the data.
             if result:
-                result = parseDataString(sData, dData)
+                result = parseDataString(dData)
 
             # If parse successful, write data output data file.
             if result:
@@ -577,12 +574,11 @@ def main():
         # the next update interval.
 
         elapsedTime = time.time() - currentTime
-        if debugOption:
+        if verboseMode:
             if result:
-                print("%s update successful:" % getTimeStamp(), end='')
+                print("update successful: %s sec" % elapsedTime)
             else:
-                print("%s update failed:" % getTimeStamp(), end='')
-            print(" %6f seconds\n" % elapsedTime)
+                print("update failed: %s sec" % elapsedTime)
         remainingTime = dataRequestInterval - elapsedTime
         if remainingTime > 0.0:
             time.sleep(remainingTime)
