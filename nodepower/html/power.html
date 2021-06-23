@@ -40,6 +40,21 @@ p {
     color: red;
     /*border: 1px solid black;*/
 }
+#logoBox {
+    display:inline-block;
+    width:20%;
+    /*border:1px solid black;*/
+}
+#logoInfo {
+    padding-left: 20px;
+    padding-top: 10px;
+    display:inline-block;
+    width:45%;
+    font:14px arial,sans-serif;
+    text-align:left;
+    vertical-align: top;
+   /*border:1px solid black;*/
+}
 .rowContainer {
     display: table;
     width: 100%;
@@ -64,10 +79,12 @@ p {
 }
 .chartContainer {
     padding: 2px;
-    border: 1px solid black;
+    /*border: 1px solid black;8?
 }
 img.chart {
     width: 100%;
+    height: 233px;
+    /*border: 1px solid black;*/
 }
 span.chartNav {
     margin: auto;
@@ -106,16 +123,20 @@ text.chartNav {
 
 <div id="mainContainer">
 
-<h2><a href="https://github.com/fractalxaos/ham/tree/master/nodepower" 
+<div id="logoBox">
+<a href="https://github.com/fractalxaos/ham/tree/master/nodepower" 
 style="text-decoration:none" target="_new">
-Node Power</a></h2>
-<h4>WA7ABU Victor Point AREDN Mesh Installation</h4>
-
-<div style="width:60%; text-align:left; font:14px arial, sans-serif;">
-This web page shows the power consumption of above node(s).  Charts below
-provide a historical glimpse of node power consumption, battery and ambient
-temperatures.
+<img src="static/npwlogo.png"></a>
 </div>
+
+<div id="logoInfo">
+This web page shows the power consumption of the node installation at the site listed below.  The charts provide a historical glimpse for different time periods
+of node power consumption, battery and ambient temperatures.
+</div>
+
+<a href="http://wa7abu-pb400-vp-0ccd.local.mesh:8080/cgi-bin/status"
+ style="text-decoration:none" target="_new">
+<h4>WA7ABU Victor Point AREDN Mesh Installation</h4></a>
 
 <div id="datetime">
 <text id="date"></text>
@@ -237,7 +258,7 @@ Status:
 <b>NOTES:</b>
 <ul>
 <li>Node sensor project plans and software available at
-<a href="https://github.com/fractalxaos/ham/tree/master/nodepower" target="_new">
+<a href="https://github.com/fractalxaos/ham/archive/master.zip" target="_new">
 <i>Github.com</i>
 </a>.</li>
 <li>Project plans and software also available via the mesh
