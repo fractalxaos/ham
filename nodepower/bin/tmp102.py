@@ -57,17 +57,25 @@ class tmp102:
     # register.
     def __init__(self, sAddr=DEFAULT_BUS_ADDRESS,
                  sbus=DEFAULT_BUS_NUMBER,
-                 config=DEFAULT_CONFIG): 
+                 config=DEFAULT_CONFIG,
+                 debug=False): 
         # Instantiate a smbus object
         self.sensorAddr = sAddr
         self.bus = smbus.SMBus(sbus)
+        self.debugMode = debug
+ 
         # Initialize TMP102 sensor.  
         initData = [(config >> 8), (config & 0x00FF)]
         self.bus.write_i2c_block_data(self.sensorAddr, CONFIG_REG, initData)
+
+        if self.debugMode:
+            # Read the TMP102 configuration register.
+            data = self.getInfo()
+            print("configuration register: %s %s\n" % data)
     ## end def
 
     # Reads the configuration register (two bytes).
-    def status(self):
+    def getInfo(self):
         # Read configuration data
         config = self.bus.read_i2c_block_data(self.sensorAddr, CONFIG_REG, 2)
         configB1 = format(config[0], "08b")
@@ -99,6 +107,12 @@ class tmp102:
         # The temperature is returned in d11-d0, a two's complement,
         # 12 bit number.  This means that d11 is the sign bit.
         data=self.bus.read_i2c_block_data(self.sensorAddr, TEMP_REG, 2)
+
+        if self.debugMode:
+            dataB1 = format(data[0], "08b")
+            dataB2 = format(data[1], "08b")
+            print("Temperature Reg: %s %s" % (dataB1, dataB2))
+
         # Format into a 12 bit word.
         bData = ( data[0] << 8 | data[1] ) >> 4
         # Convert from two's complement to integer.
@@ -121,24 +135,18 @@ class tmp102:
 
 def testclass():
     # Initialize the smbus and TMP102 sensor.
-    ts1 = tmp102(0x48, 1)
-    # Read the TMP102 configuration register.
-    data = ts1.status()
-    print "configuration register: %s %s\n" % data
+    ts1 = tmp102(0x48, 1, debug=True)
     # Print out sensor values.
     bAl = False
     while True:
-        regdata = ts1.getTempReg()
         tempC = ts1.getTempC()
         tempF = ts1.getTempF()
         if bAl:
             bAl = False
-            print("\033[42;30mTemperature Reg: %s %s\033[m" % regdata)
-            print("\033[42;30m%6.2f%sC  %6.2f%s                 \033[m" % \
+            print("\033[42;30m%6.2f%sC  %6.2f%sF                 \033[m" % \
                   (tempC, DEGSYM, tempF, DEGSYM))
         else:
             bAl = True
-            print("Temperature Reg: %s %s" % regdata)
             print("%6.2f%sC  %6.2f%sF" % \
                   (tempC, DEGSYM, tempF, DEGSYM))
         time.sleep(2)

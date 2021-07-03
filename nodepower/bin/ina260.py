@@ -57,16 +57,24 @@ class ina260:
     # register.
     def __init__(self, sAddr=DEFAULT_BUS_ADDRESS,
                        sbus=DEFAULT_BUS_NUMBER,
-                       config=DEFAULT_CONFIG):
+                       config=DEFAULT_CONFIG,
+                       debug=False):
         # Instantiate a smbus object.
         self.sensorAddr = sAddr
         self.bus = smbus.SMBus(sbus)
+        self.debugMode = debug
+
         # Initialize INA260 sensor.  
         initData = [(config >> 8), (config & 0x00FF)]
         self.bus.write_i2c_block_data(self.sensorAddr, CONFIG_REG, initData)
+
+        if self.debugMode:
+            data = self.getInfo()
+            print("manufacturer ID: %s %s\n"\
+                  "configuration register: %s %s\n" % data)
     ## end def
 
-    def status(self):
+    def getInfo(self):
         # Read manufacture identification data.
         mfcid = self.bus.read_i2c_block_data(self.sensorAddr, ID_REG, 2)
         mfcidB1 = format(mfcid[0], "08b")
@@ -91,7 +99,7 @@ class ina260:
         # Get the current data from the sensor.
         # INA260 returns the data in two bytes formatted as follows
         #        -------------------------------------------------
-        #    bit | b7  | b6  | b5  | b4  | b3  | b2  | b1  | b0  |
+        #    bit |  7  |  6  |  5  |  4  |  3  |  2  |  1  |  0  |
         #        -------------------------------------------------
         # byte 1 | d15 | d14 | d13 | d12 | d11 | d10 | d9  | d8  |
         #        -------------------------------------------------
@@ -100,6 +108,12 @@ class ina260:
         # The current is returned in d15-d0, a two's complement,
         # 16 bit number.  This means that d15 is the sign bit.        
         data=self.bus.read_i2c_block_data(self.sensorAddr, CUR_REG, 2)
+
+        if self.debugMode:
+            dataB1 = format(data[0], "08b")
+            dataB2 = format(data[1], "08b")
+            print("current register: %s %s" % (dataB1, dataB2))
+
         # Format into a 16 bit word.
         bdata = data[0] << 8 | data[1]
         # Convert from two's complement to integer.
@@ -126,7 +140,7 @@ class ina260:
         # Get the voltage data from the sensor.
         # INA260 returns the data in two bytes formatted as follows
         #        -------------------------------------------------
-        #    bit | b7  | b6  | b5  | b4  | b3  | b2  | b1  | b0  |
+        #    bit |  7  |  6  |  5  |  4  |  3  |  2  |  1  |  0  |
         #        -------------------------------------------------
         # byte 1 | d15 | d14 | d13 | d12 | d11 | d10 | d9  | d8  |
         #        -------------------------------------------------
@@ -134,6 +148,12 @@ class ina260:
         #        -------------------------------------------------
         # The voltage is returned in d15-d0 as an unsigned integer.
         data=self.bus.read_i2c_block_data(self.sensorAddr, VOLT_REG, 2)
+
+        if self.debugMode:
+            dataB1 = format(data[0], "08b")
+            dataB2 = format(data[1], "08b")
+            print("voltage register: %s %s" % (dataB1, dataB2))
+
         # Convert data to volts.
         volts = (data[0] << 8 | data[1]) * 0.00125 # LSB is 1.25 mV
         return volts
@@ -143,7 +163,7 @@ class ina260:
         # Get the wattage data from the sensor.
         # INA260 returns the data in two bytes formatted as follows
         #        -------------------------------------------------
-        #    bit | b7  | b6  | b5  | b4  | b3  | b2  | b1  | b0  |
+        #    bit | 7   |  6  |  5  |  4  |  3  |  2  |  1  |  0  |
         #        -------------------------------------------------
         # byte 1 | d15 | d14 | d13 | d12 | d11 | d10 | d9  | d8  |
         #        -------------------------------------------------
@@ -151,6 +171,12 @@ class ina260:
         #        -------------------------------------------------
         # The wattage is returned in d15-d0 as an unsigned integer.
         data=self.bus.read_i2c_block_data(self.sensorAddr, PWR_REG, 2)
+
+        if self.debugMode:
+            dataB1 = format(data[0], "08b")
+            dataB2 = format(data[1], "08b")
+            print("power register: %s %s" % (dataB1, dataB2))
+
         # Convert data to milliWatts. 
         mW = (data[0] << 8 | data[1]) * 10.0  # LSB is 10.0 mW
         return mW
@@ -159,15 +185,10 @@ class ina260:
 
 def test():
     # Initialize the smbus and INA260 sensor.
-    pwr1 = ina260(0x40, 1)
-    # Read the INA260 configuration register and manufacturer's ID.
-    data = pwr1.status()
-    print("manufacturer ID: %s %s\nconfiguration register: %s %s\n" % data)
+    pwr1 = ina260(0x40, 1, debug=True)
     # Print out sensor values.
     while True:
-        print("current register: %s %s" % pwr1.getCurrentReg())
         print("%6.2f mA" % pwr1.getCurrent())
-        print("volt register: %s %s" % pwr1.getVoltageReg())
         print("%6.2f V" % pwr1.getVoltage())
         print("%6.2f mW\n" % pwr1.getPower())
         time.sleep(2)

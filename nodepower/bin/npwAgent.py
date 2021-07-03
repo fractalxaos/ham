@@ -29,6 +29,8 @@
 #
 # Revision History
 #   * v10 released 01 June 2021 by J L Owrey; first release
+#   * v11 released 02 July 2021 by J L Owrey; improved sensor fault
+#     handling; improved code readability
 #
 #2345678901234567890123456789012345678901234567890123456789012345678901234567890
 
@@ -55,7 +57,7 @@ _PWR_SENSOR_ADDR = 0X40
 _BAT_TMP_SENSOR_ADDR = 0x48
 _AMB_TMP_SENSOR_ADDR = 0x4B
 # Set bus selector.
-_BUS_SEL = 1
+_BUS_NUMBER = 1
 
     ### FILE AND FOLDER LOCATIONS ###
 
@@ -71,9 +73,12 @@ _RRD_FILE = "/home/%s/database/powerData.rrd" % _USER
     ### GLOBAL CONSTANTS ###
 
 # sensor data request interval in seconds
-_DEFAULT_DATA_REQUEST_INTERVAL = 2
+_DEFAULT_SENSOR_POLLING_INTERVAL = 2
 # rrdtool database update interval in seconds
 _DATABASE_UPDATE_INTERVAL = 30
+# max number of failed attempts to get sensor data
+_MAX_FAILED_DATA_REQUESTS = 2
+
 # chart update interval in seconds
 _CHART_UPDATE_INTERVAL = 600
 # standard chart width in pixels
@@ -85,19 +90,23 @@ _AVERAGE_LINE_COLOR = '#006600'
 
    ### GLOBAL VARIABLES ###
 
-# debug output options
+# turns on or off extensive debugging messages
 debugMode = False
 verboseMode = False
 
 # frequency of data requests to sensors
-dataRequestInterval = _DEFAULT_DATA_REQUEST_INTERVAL
+dataRequestInterval = _DEFAULT_SENSOR_POLLING_INTERVAL
 # how often charts get updated
 chartUpdateInterval = _CHART_UPDATE_INTERVAL
+# number of failed attempts to get sensor data
+failedUpdateCount = 0
+# sensor status
+deviceOnline = False
 
-# Define each sensor.  This also initialzes each sensor.
-pwr = ina260.ina260(_PWR_SENSOR_ADDR, _BUS_SEL)
-btmp = tmp102.tmp102(_BAT_TMP_SENSOR_ADDR, _BUS_SEL)
-atmp = tmp102.tmp102(_AMB_TMP_SENSOR_ADDR, _BUS_SEL)
+# Create sensor objects.  This also initialzes each sensor.
+power = ina260.ina260(_PWR_SENSOR_ADDR, _BUS_NUMBER)
+battemp = tmp102.tmp102(_BAT_TMP_SENSOR_ADDR, _BUS_NUMBER)
+ambtemp = tmp102.tmp102(_AMB_TMP_SENSOR_ADDR, _BUS_NUMBER)
 
   ###  PRIVATE METHODS  ###
 
@@ -127,21 +136,37 @@ def getEpochSeconds(sTime):
     return tSeconds
 ## end def
 
-def terminateAgentProcess(signal, frame):
+def setStatusToOffline():
+    """Set the detected status of the device to
+       "offline" and inform downstream clients by removing input
+       and output data files.
+       Parameters: none
+       Returns: nothing
     """
-    Send a message to the log when the agent process gets killed
-    by the operating system.  Inform downstream clients
-    by removing output data files.
-    Parameters:
-        signal, frame - dummy parameters
-    Returns: nothing
-    """
+    global deviceOnline
+
     # Inform downstream clients by removing output data file.
     if os.path.exists(_OUTPUT_DATA_FILE):
        os.remove(_OUTPUT_DATA_FILE)
-    print('%s terminating npw agent process' % getTimeStamp())
+    # If the sensor or  device was previously online, then send
+    # a message that we are now offline.
+    if deviceOnline:
+        print('%s device offline' % getTimeStamp())
+    deviceOnline = False
+##end def
+
+def terminateAgentProcess(signal, frame):
+    """Send a message to log when the agent process gets killed
+       by the operating system.  Inform downstream clients
+       by removing input and output data files.
+       Parameters:
+           signal, frame - dummy parameters
+       Returns: nothing
+    """
+    print('%s terminating agent process' % getTimeStamp())
+    setStatusToOffline()
     sys.exit(0)
-## end def
+##end def
 
   ###  PUBLIC METHODS  ###
 
@@ -156,11 +181,11 @@ def getSensorData(dData):
     dData["time"] = getTimeStamp()
  
     try:
-        dData["current"] = pwr.getCurrent()
-        dData["voltage"] = pwr.getVoltage()
-        dData["power"] = pwr.getPower()
-        dData["battemp"] = btmp.getTempF()
-        dData["ambtemp"] = atmp.getTempF()
+        dData["current"] = power.getCurrent()
+        dData["voltage"] = power.getVoltage()
+        dData["power"] = power.getPower()
+        dData["battemp"] = battemp.getTempF()
+        dData["ambtemp"] = ambtemp.getTempF()
     except Exception as exError:
         print("%s sensor error: %s" % (getTimeStamp(), exError))
         return False
@@ -211,6 +236,35 @@ def writeOutputFile(dData):
 
     return True
 ## end def
+
+def setStatus(updateSuccess):
+    """Detect if device is offline or not available on
+       the network. After a set number of attempts to get data
+       from the device set a flag that the device is offline.
+       Parameters:
+           updateSuccess - a boolean that is True if data request
+                           successful, False otherwise
+       Returns: nothing
+    """
+    global failedUpdateCount, deviceOnline
+
+    if updateSuccess:
+        failedUpdateCount = 0
+        # Set status and send a message to the log if the device
+        # previously offline and is now online.
+        if not deviceOnline:
+            print('%s device online' % getTimeStamp())
+            deviceOnline = True
+    else:
+        # The last attempt failed, so update the failed attempts
+        # count.
+        failedUpdateCount += 1
+
+    if failedUpdateCount >= _MAX_FAILED_DATA_REQUESTS:
+        # Max number of failed data requests, so set
+        # device status to offline.
+        setStatusToOffline()
+##end def
 
 def updateDatabase(dData):
     """
@@ -439,12 +493,13 @@ def main():
     Parameters: none
     Returns: nothing
     """
-    global dataRequestInterval
-
     signal.signal(signal.SIGTERM, terminateAgentProcess)
     signal.signal(signal.SIGINT, terminateAgentProcess)
 
-    print('%s starting up node power agent process' % getTimeStamp())
+    # Log agent process startup time.
+    print '===================\n'\
+          '%s starting up node power agent process' % \
+                  (getTimeStamp())
 
     # last time output JSON file updated
     lastDataRequestTime = -1
@@ -487,6 +542,8 @@ def main():
                 lastDatabaseUpdateTime = currentTime
                 ## Update the round robin database with the parsed data.
                 result = updateDatabase(dData)
+
+            setStatus(result)
 
         # At the chart generation interval, generate charts.
         if currentTime - lastChartUpdateTime > chartUpdateInterval:
