@@ -71,6 +71,7 @@ class tmp102:
         if self.debugMode:
             # Read the TMP102 configuration register.
             data = self.getInfo()
+            print(self)
             print("configuration register: %s %s\n" % data)
     ## end def
 

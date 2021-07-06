@@ -31,6 +31,8 @@
 #   * v10 released 01 June 2021 by J L Owrey; first release
 #   * v11 released 02 July 2021 by J L Owrey; improved sensor fault
 #     handling; improved code readability
+#   * v12 released 06 July 2021 by J L Owrey; improved debug mode
+#     handling; debug mode state now passed to sensor object constructors
 #
 #2345678901234567890123456789012345678901234567890123456789012345678901234567890
 
@@ -103,11 +105,6 @@ failedUpdateCount = 0
 # sensor status
 deviceOnline = False
 
-# Create sensor objects.  This also initialzes each sensor.
-power = ina260.ina260(_PWR_SENSOR_ADDR, _BUS_NUMBER)
-battemp = tmp102.tmp102(_BAT_TMP_SENSOR_ADDR, _BUS_NUMBER)
-ambtemp = tmp102.tmp102(_AMB_TMP_SENSOR_ADDR, _BUS_NUMBER)
-
   ###  PRIVATE METHODS  ###
 
 def getTimeStamp():
@@ -170,22 +167,23 @@ def terminateAgentProcess(signal, frame):
 
   ###  PUBLIC METHODS  ###
 
-def getSensorData(dData):
+def getSensorData(dSensors, dData):
     """
     Poll sensors for data. Store the data in a dictionary object for
     use by other subroutines.  The dictionary object passed in should
     an empty dictionary, i.e., dData = { }.
     Parameters: dData - a dictionary object to contain the sensor data
+                dSensors - a dictionary containing sensor objects
     Returns: True if successful, False otherwise
     """
     dData["time"] = getTimeStamp()
  
     try:
-        dData["current"] = power.getCurrent()
-        dData["voltage"] = power.getVoltage()
-        dData["power"] = power.getPower()
-        dData["battemp"] = battemp.getTempF()
-        dData["ambtemp"] = ambtemp.getTempF()
+        dData["current"] = dSensors['power'].getCurrent()
+        dData["voltage"] = dSensors['power'].getVoltage()
+        dData["power"] = dSensors['power'].getPower()
+        dData["battemp"] = dSensors['battemp'].getTempF()
+        dData["ambtemp"] = dSensors['ambtemp'].getTempF()
     except Exception as exError:
         print("%s sensor error: %s" % (getTimeStamp(), exError))
         return False
@@ -517,8 +515,18 @@ def main():
               'use createPowerRrd script to ' \
               'create rrdtool database\n')
         exit(1)
- 
-    ## main loop
+
+    # Create sensor objects.  This also initializes each sensor.
+    dSensors = {}
+    dSensors['power'] = ina260.ina260(_PWR_SENSOR_ADDR, _BUS_NUMBER,
+                            debug=debugMode)
+    dSensors['battemp'] = tmp102.tmp102(_BAT_TMP_SENSOR_ADDR, _BUS_NUMBER,
+                            debug=debugMode)
+    dSensors['ambtemp'] = tmp102.tmp102(_AMB_TMP_SENSOR_ADDR, _BUS_NUMBER,
+                            debug=debugMode)
+
+    ### MAIN LOOP ###
+
     while True:
 
         currentTime = time.time() # get current time in seconds
@@ -530,7 +538,7 @@ def main():
             dData = {}
 
             # Get the data from the sensors.
-            result =getSensorData(dData)
+            result =getSensorData(dSensors, dData)
  
             # If get data successful, write data to data files.
             if result:

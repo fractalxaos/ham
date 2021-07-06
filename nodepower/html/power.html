@@ -324,6 +324,7 @@ var chartPeriod = 1;
 var objBlink;
 
 function main() {
+    httpRequest.timeout = 3000;
 
     if (location.hostname.match(/.local/g) == null) {
         customSelector.style.visibility = "hidden";
@@ -338,6 +339,7 @@ function main() {
             displayOfflineStatus();
         }
     };
+
     httpRequest.ontimeout = function(e) {
         displayOfflineStatus();
     };
@@ -350,8 +352,7 @@ function main() {
 }
 
 function getSensorData() {
-    httpRequest.open("GET", SENSOR_DATA_URL, true);
-    httpRequest.timeout = 3000;
+    httpRequest.open("POST", SENSOR_DATA_URL, true);
     httpRequest.send();
 }
 

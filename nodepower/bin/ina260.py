@@ -70,8 +70,9 @@ class ina260:
 
         if self.debugMode:
             data = self.getInfo()
+            print(self)
             print("manufacturer ID: %s %s\n"\
-                  "configuration register: %s %s\n" % data)
+                  "INA260 configuration register: %s %s\n" % data)
     ## end def
 
     def getInfo(self):
