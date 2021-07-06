@@ -5,15 +5,27 @@
 # whether your local network uses a domain name server.
 #
 
-AGENT_NAME="[a]rednsigAgent.py"
-SOURCE_URL="http://localnode.local.mesh/cgi-bin/status"
-
 APP_PATH="/home/$USER/bin"
 LOG_PATH="/home/$USER/log"
 
 # Changing the value overides the default data request interval hardcoded
 # in the agent script.  '60' is the default. Value is in seconds.
 POLLING_INTERVAL="60"
+
+
+if [ "$HOSTNAME" == "raspi3" ]; then
+  AGENT_NAME="[a]rednsigMirrorAgent.py"
+  SOURCE_URL="http://192.168.1.30:7368/arednsig/"
+elif [ "$HOSTNAME" == "redwall" ]; then
+  AGENT_NAME="[a]rednsigMirrorAgent.py"
+  SOURCE_URL="http://73.157.139.23:7361/arednsig/"
+elif [ "$HOSTNAME" == "ka7jlo-web" ]; then
+  AGENT_NAME="[a]rednsigAgent.py"
+  SOURCE_URL="http://ka7jlo-sw-albany-nano-m3.local.mesh/cgi-bin/status"
+else
+  echo invalid host
+  exit 1
+fi
 
 PROCESS_ID="$(ps x | awk -v a=$AGENT_NAME '$7 ~ a {print $1}')"
 

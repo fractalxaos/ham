@@ -176,12 +176,11 @@ function createChart($chartFile, $dataItem, $label, $title, $begin,
     if ($addTrend == 0) {
         $cmd .= "LINE1:dSeries#0400ff ";
     } elseif ($addTrend == 1) {
-        $cmdfmt = "CDEF:smoothed=dSeries,%s,TREND LINE3:smoothed#ff0000 ";
+        $cmdfmt = "CDEF:smoothed=dSeries,%s,TREND LINE2:smoothed#006600 ";
         $cmd .= sprintf($cmdfmt, $trendWindow);
     } elseif ($addTrend == 2) {
         $cmd .= "LINE1:dSeries#0400ff ";
-        $cmdfmt = "CDEF:smoothed=dSeries,%s,TREND LINE3:smoothed#ff0000 ";
-        #$cmdfmt = "CDEF:smoothed=dSeries,%s,XYZZY LINE3:smoothed#ff0000 ";
+        $cmdfmt = "CDEF:smoothed=dSeries,%s,TREND LINE2:smoothed#006600 ";
         $cmd .=  sprintf($cmdfmt, $trendWindow);
     }
      
