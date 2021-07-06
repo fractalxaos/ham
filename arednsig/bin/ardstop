@@ -1,16 +1,7 @@
 #!/bin/bash
 # Stop the radmon agent process.
 
-if [ "$HOSTNAME" == "raspi3" ]; then
-  AGENT_NAME="[a]rednsigMirrorAgent.py"
-elif [ "$HOSTNAME" == "redwall" ]; then
-  AGENT_NAME="[a]rednsigMirrorAgent.py"
-elif [ "$HOSTNAME" == "ka7jlo-web" ]; then
-  AGENT_NAME="[a]rednsigAgent.py"
-else
-  echo invalid host
-  exit 1
-fi
+AGENT_NAME="[a]rednsigAgent.py"
 
 PROCESS_ID="$(ps x | awk -v a=$AGENT_NAME '$7 ~ a {print $1}')"
 
