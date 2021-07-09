@@ -38,6 +38,8 @@
 #     status page and parsed the signal data from the html.
 #   * v23 released 11 Jun 2021 by J L Owrey; remove unused code.
 #   * v24 released 14 Jun 2021 by J L Owrey; minor revisions
+#   * v25 released 9 Jul 2021 by J L Owrey; improved handling of
+#         node status function
 #
 #2345678901234567890123456789012345678901234567890123456789012345678901234567890
 
@@ -59,7 +61,8 @@ _SERVER_MODE = "primary"
 
 # set url of the aredn node
 
-_DEFAULT_AREDN_NODE_URL = "{your AREDN mesh node url"
+_DEFAULT_AREDN_NODE_URL = \
+    "{your node url}"
 
     ### FILE AND FOLDER LOCATIONS ###
 
@@ -101,7 +104,7 @@ debugMode = False
 # count of failed attempts to get data from aredn node
 failedUpdateCount = 0
 # detected status of aredn node device
-nodeOnline = True
+nodeOnline = False
 
 # ip address of aredn node
 arednNodeUrl = _DEFAULT_AREDN_NODE_URL
@@ -165,10 +168,8 @@ def terminateAgentProcess(signal, frame):
            signal, frame - dummy parameters
        Returns: nothing
     """
-    # Inform downstream clients by removing output data file.
-    if os.path.exists(_OUTPUT_DATA_FILE):
-       os.remove(_OUTPUT_DATA_FILE)
     print('%s terminating arednsig agent process' % getTimeStamp())
+    setStatusToOffline()
     sys.exit(0)
 ##end def
 
@@ -183,12 +184,8 @@ def getNodeData(dData):
     """
     try:
         currentTime = time.time()
-
         response = urlopen(arednNodeUrl, timeout=_HTTP_REQUEST_TIMEOUT)
-
-        if verboseMode:
-            requestTime = time.time() - currentTime
-            print("http request: %.4f seconds" % requestTime)
+        requestTime = time.time() - currentTime
 
         content = response.read().decode('utf-8')
         content = content.replace('\n', '')
@@ -206,9 +203,10 @@ def getNodeData(dData):
 
     if debugMode:
         print(content)
+    if verboseMode:
+        print("http request successful: %.4f sec" % requestTime)
 
     dData['content'] = content
-
     return True
 ##end def
 
@@ -237,14 +235,19 @@ def parseDataString(dData):
         snr = snr.replace(' ','')
         lsnr = snr.split('/')
 
-        dData['time'] = getEpochSeconds(getTimeStamp())
         dData['signal'] = lsnr[0]
         dData['noise'] = lsnr[1]
         dData['snr'] = lsnr[2]
-    
     except Exception as exError:
         print("%s parse failed: %s" % (getTimeStamp(), exError))
         return False
+    ## end try
+
+    # Add status information to dictionary object.
+    dData['date'] = getTimeStamp()
+    dData['chartUpdateInterval'] = chartUpdateInterval
+    dData['dataRequestInterval'] = dataRequestInterval
+    dData['serverMode'] = _SERVER_MODE
 
     return True
 ##end def
@@ -262,16 +265,12 @@ def writeOutputFile(dData):
     # data items are sent to the client file.
     #    * The last database update date and time
     #    * The data request interval
-    lastUpdate = time.strftime( "%m.%d.%Y %T", 
-                                time.localtime(dData['time']) )
 
     # Format data into a JSON string.
     jsData = json.loads("{}")
     try:
-        jsData.update({"date": lastUpdate})
-        jsData.update({"chartUpdateInterval": chartUpdateInterval})
-        jsData.update({"dataRequestInterval": dataRequestInterval})
-        jsData.update({"serverMode": _SERVER_MODE})
+        for key in dData:
+            jsData.update({key:dData[key]})
         sData = "[%s]" % json.dumps(jsData)
     except Exception as exError:
         print("%s writeOutputFile: %s" % (getTimeStamp(), exError))
@@ -291,6 +290,35 @@ def writeOutputFile(dData):
     return True
 ## end def
 
+def setNodeStatus(updateSuccess):
+    """Detect if aredn node is offline or not available on
+       the network. After a set number of attempts to get data
+       from the node set a flag that the node is offline.
+       Parameters:
+           updateSuccess - a boolean that is True if data request
+                           successful, False otherwise
+       Returns: nothing
+    """
+    global failedUpdateCount, nodeOnline
+
+    if updateSuccess:
+        failedUpdateCount = 0
+        # Set status and send a message to the log if the device
+        # previously offline and is now online.
+        if not nodeOnline:
+            print('%s node online' % getTimeStamp())
+            nodeOnline = True
+        return
+    elif failedUpdateCount == _MAX_FAILED_DATA_REQUESTS - 1:
+        # Max number of failed data requests, so set
+        # device status to offline.
+        setStatusToOffline()
+    ## end if
+    failedUpdateCount += 1
+##end def
+
+    ### DATABASE FUNCTIONS ###
+
 def updateDatabase(dData):
     """
     Update the rrdtool database by executing an rrdtool system command.
@@ -300,9 +328,12 @@ def updateDatabase(dData):
                         written to the rr database file
     Returns: True if successful, False otherwise
     """
+    
+    time = getEpochSeconds(dData['date'])
+
     # Format the rrdtool update command.
     strFmt = "rrdtool update %s %s:%s:%s:%s:%s:%s:%s:%s"
-    strCmd = strFmt % (_RRD_FILE, dData['time'], dData['signal'], \
+    strCmd = strFmt % (_RRD_FILE, time, dData['signal'], \
              dData['noise'], dData['snr'], '0', \
              '0', '0', '0')
 
@@ -319,38 +350,9 @@ def updateDatabase(dData):
         return False
 
     if verboseMode and not debugMode:
-        print("database updated")
+        print("database update successful")
 
     return True
-##end def
-
-def setNodeStatus(updateSuccess):
-    """Detect if aredn node is offline or not available on
-       the network. After a set number of attempts to get data
-       from the node set a flag that the node is offline.
-       Parameters:
-           updateSuccess - a boolean that is True if data request
-                           successful, False otherwise
-       Returns: nothing
-    """
-    global failedUpdateCount, nodeOnline
-
-    if updateSuccess:
-        failedUpdateCount = 0
-        # Set status and send a message to the log if the node was
-        # previously offline and is now online.
-        if not nodeOnline:
-            print('%s aredn node online' % getTimeStamp())
-            nodeOnline = True
-    else:
-        # The last attempt failed, so update the failed attempts
-        # count.
-        failedUpdateCount += 1
-
-    if failedUpdateCount > _MAX_FAILED_DATA_REQUESTS:
-        # Max number of failed data requests, so set
-        # node status to offline.
-        setStatusToOffline()
 ##end def
 
 def createGraph(fileName, dataItem, gLabel, gTitle, gStart,
@@ -513,6 +515,7 @@ def main():
     signal.signal(signal.SIGTERM, terminateAgentProcess)
     signal.signal(signal.SIGINT, terminateAgentProcess)
 
+    print('===================')
     print('%s starting up arednsig agent process' % \
                   (getTimeStamp()))
 
@@ -568,7 +571,7 @@ def main():
         if currentTime - lastChartUpdateTime > chartUpdateInterval:
             lastChartUpdateTime = currentTime
             p = multiprocessing.Process(target=generateGraphs, args=())
-            p.start()
+            #p.start()
 
         # Relinquish processing back to the operating system until
         # the next update interval.
@@ -576,9 +579,9 @@ def main():
         elapsedTime = time.time() - currentTime
         if verboseMode:
             if result:
-                print("update successful: %s sec" % elapsedTime)
+                print("update successful: %s sec\n" % elapsedTime)
             else:
-                print("update failed: %s sec" % elapsedTime)
+                print("update failed: %s sec\n" % elapsedTime)
         remainingTime = dataRequestInterval - elapsedTime
         if remainingTime > 0.0:
             time.sleep(remainingTime)

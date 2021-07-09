@@ -231,6 +231,7 @@ function main() {
     initializeDateSelector();
     getNodeData();
     getNodeCharts();
+    setInterval(getNodeData, 10000);
 }
 
 function getNodeData() {
@@ -292,23 +293,19 @@ function displayData(dataItem) {
     statusElmt.innerHTML = "Online";
     statusElmt.style.color = "green";
 
-    chartUpdateInterval = dataItem.chartUpdateInterval;
-    dataRequestInterval = dataItem.dataRequestInterval;
+    chartUpdateInterval =  dataItem.chartUpdateInterval;
     periodElmt.innerHTML = chartUpdateInterval / 60;
-    setInterval(getNodeData, 1000 * dataRequestInterval);
     setInterval(getNodeCharts, 1000 * chartUpdateInterval);
 }
 
 function displayOfflineStatus() {
+    var localTimeZone;
     var d = new Date();
-    localTimeZone = d.getTimezoneOffset() / 60;
-    dateElmt.innerHTML = (d.getMonth() + 1) + "/" + d.getDate() + "/" +
-                          d.getFullYear();    
-    timeElmt.innerHTML = d.getHours() + ":" + d.getMinutes() +
-                         "  <small>(GMT+" + localTimeZone + ")</small>";
-    periodElmt.innerHTML = "?";    
+
     statusElmt.innerHTML = "offline";    
     statusElmt.style.color = "red";
+
+    periodElmt.innerHTML = "?";    
 }
 
 function initializeDateSelector() {
