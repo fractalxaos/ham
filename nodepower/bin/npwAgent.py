@@ -188,6 +188,8 @@ def getSensorData(dSensors, dData):
         print("%s sensor error: %s" % (getTimeStamp(), exError))
         return False
 
+    dData['chartUpdateInterval'] = chartUpdateInterval
+
     return True
 ## end def
 
@@ -212,7 +214,6 @@ def writeOutputFile(dData):
     try:
         for key in dData:
             jsData.update({key:dData[key]})
-        jsData.update({"chartUpdateInterval": chartUpdateInterval})
         sData = "[%s]" % json.dumps(jsData)
     except Exception as exError:
         print("%s writeOutputFile: %s" % (getTimeStamp(), exError))
@@ -253,16 +254,19 @@ def setStatus(updateSuccess):
         if not deviceOnline:
             print('%s device online' % getTimeStamp())
             deviceOnline = True
+        return
     else:
         # The last attempt failed, so update the failed attempts
         # count.
         failedUpdateCount += 1
 
-    if failedUpdateCount >= _MAX_FAILED_DATA_REQUESTS:
+    if failedUpdateCount == _MAX_FAILED_DATA_REQUESTS:
         # Max number of failed data requests, so set
         # device status to offline.
         setStatusToOffline()
 ##end def
+
+    ### DATABASE FUNCTIONS ###
 
 def updateDatabase(dData):
     """
@@ -289,12 +293,12 @@ def updateDatabase(dData):
         subprocess.check_output(strCmd, shell=True, \
             stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as exError:
-        print("%s: rrdtool update failed: %s" % \
+        print("%s: rrdtool update: %s" % \
             (getTimeStamp(), exError.output))
         return False
 
     if verboseMode and not debugMode:
-        print("database updated")
+        print("database update successful")
 
     return True
 ## end def
@@ -373,7 +377,8 @@ def createGraph(fileName, dataItem, gLabel, gTitle, gStart,
                      stderr=subprocess.STDOUT,   \
                      shell=True)
     except subprocess.CalledProcessError as exError:
-        print("rrdtool graph failed: %s" % (exError.output))
+        print("%s rrdtool graph: %s" % \
+              (getTimeStamp(), exError.output))
         return False
 
     if verboseMode and not debugMode:
