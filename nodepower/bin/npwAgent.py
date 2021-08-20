@@ -92,6 +92,9 @@ _AVERAGE_LINE_COLOR = '#006600'
 
    ### GLOBAL VARIABLES ###
 
+# Container for sensor objects.
+dSensors = {}
+
 # turns on or off extensive debugging messages
 debugMode = False
 verboseMode = False
@@ -167,7 +170,7 @@ def terminateAgentProcess(signal, frame):
 
   ###  PUBLIC METHODS  ###
 
-def getSensorData(dSensors, dData):
+def getSensorData(dData):
     """
     Poll sensors for data. Store the data in a dictionary object for
     use by other subroutines.  The dictionary object passed in should
@@ -504,13 +507,6 @@ def main():
           '%s starting up node power agent process' % \
                   (getTimeStamp())
 
-    # last time output JSON file updated
-    lastDataRequestTime = -1
-    # last time charts generated
-    lastChartUpdateTime = - 1
-    # last time the rrdtool database updated
-    lastDatabaseUpdateTime = -1
-
     ## Get command line arguments.
     getCLarguments()
 
@@ -522,13 +518,24 @@ def main():
         exit(1)
 
     # Create sensor objects.  This also initializes each sensor.
-    dSensors = {}
     dSensors['power'] = ina260.ina260(_PWR_SENSOR_ADDR, _BUS_NUMBER,
                             debug=debugMode)
     dSensors['battemp'] = tmp102.tmp102(_BAT_TMP_SENSOR_ADDR, _BUS_NUMBER,
                             debug=debugMode)
     dSensors['ambtemp'] = tmp102.tmp102(_AMB_TMP_SENSOR_ADDR, _BUS_NUMBER,
                             debug=debugMode)
+
+    # Enter main loop.
+    main_loop()
+## end def
+
+def main_loop():
+    # last time output JSON file updated
+    lastDataRequestTime = -1
+    # last time charts generated
+    lastChartUpdateTime = - 1
+    # last time the rrdtool database updated
+    lastDatabaseUpdateTime = -1
 
     ### MAIN LOOP ###
 
@@ -543,7 +550,7 @@ def main():
             dData = {}
 
             # Get the data from the sensors.
-            result =getSensorData(dSensors, dData)
+            result =getSensorData(dData)
  
             # If get data successful, write data to data files.
             if result:
@@ -579,7 +586,6 @@ def main():
         if remainingTime > 0.0:
             time.sleep(remainingTime)
     ## end while
-    return
 ## end def
 
 if __name__ == '__main__':
