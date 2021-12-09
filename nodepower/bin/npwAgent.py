@@ -49,8 +49,19 @@ import json
 import ina260 # power sensor
 import tmp102 # temperature sensor
 
+# Import custom libraries
+import smsalert
+
     ### ENVIRONMENT ###
+
 _USER = os.environ['USER']
+_HOSTNAME = os.uname()[1]
+
+    ### SMS RECIPIENTS ###
+
+_SMS_CALLSIGN = '{your callsign}'
+_SMS_PASSCODE = '{your passcode}'
+_SMS_PHONE_NUMBER = '{your phone number}'
 
     ### SENSOR BUS ADDRESSES ###
 
@@ -89,11 +100,16 @@ _CHART_WIDTH = 600
 _CHART_HEIGHT = 150
 # chart average line color
 _AVERAGE_LINE_COLOR = '#006600'
+# low voltage alert threshold
+_DEFAULT_CRITICAL_LOW_VOLTAGE = 12.0
 
    ### GLOBAL VARIABLES ###
 
-# Container for sensor objects.
-dSensors = {}
+# Sensor instance objects.
+power1 = None
+battemp = None
+ambtemp = None
+sms = None
 
 # turns on or off extensive debugging messages
 debugMode = False
@@ -107,6 +123,8 @@ chartUpdateInterval = _CHART_UPDATE_INTERVAL
 failedUpdateCount = 0
 # sensor status
 deviceOnline = False
+# sms message sent status
+bSMSmsgSent = False
 
   ###  PRIVATE METHODS  ###
 
@@ -182,17 +200,45 @@ def getSensorData(dData):
     dData["time"] = getTimeStamp()
  
     try:
-        dData["current"] = dSensors['power'].getCurrent()
-        dData["voltage"] = dSensors['power'].getVoltage()
-        dData["power"] = dSensors['power'].getPower()
-        dData["battemp"] = dSensors['battemp'].getTempF()
-        dData["ambtemp"] = dSensors['ambtemp'].getTempF()
+        dData["current"] = power1.getCurrent()
+        dData["voltage"] = power1.getVoltage()
+        dData["power"] =   power1.getPower()
+        dData["battemp"] = battemp.getTempF()
+        dData["ambtemp"] = ambtemp.getTempF()
     except Exception as exError:
         print("%s sensor error: %s" % (getTimeStamp(), exError))
         return False
 
     dData['chartUpdateInterval'] = chartUpdateInterval
 
+    return True
+## end def
+
+def convertData(dData):
+    """
+    Converts data items and verifies threshold crossings.
+    Parameters: dData - a dictionary object that contains the sensor data
+    Returns: True if successful, False otherwise
+    """
+    global bSMSmsgSent
+
+    if not bSMSmsgSent and dData["voltage"] <= _DEFAULT_CRITICAL_LOW_VOLTAGE:
+        # Format a text alert message.
+        message = "%s %s low voltage alert: %s volts" % \
+                  (getTimeStamp(), _HOSTNAME, dData["voltage"])
+        print(message)
+        # Send the text alert to recipient phone numbers.
+        sms.sendSMS(_SMS_PHONE_NUMBER, message)
+        bSMSmsgSent = True
+    elif bSMSmsgSent and dData["voltage"] > _DEFAULT_CRITICAL_LOW_VOLTAGE:
+        # Format a text alert message.
+        message = "%s %s voltage normal: %s volts" % \
+                  (getTimeStamp(), _HOSTNAME, dData["voltage"])
+        print(message)
+        # Send the text alert to recipient phone numbers.
+        sms.sendSMS(_SMS_PHONE_NUMBER, message)
+        bSMSmsgSent = False
+    ## end if
     return True
 ## end def
 
@@ -492,13 +538,15 @@ def getCLarguments():
         index += 1
 ##end def
 
-def main():
+def main_setup():
     """
     Handles timing of events and acts as executive routine managing
     all other functions.
     Parameters: none
     Returns: nothing
     """
+    global power1, battemp, ambtemp, sms
+
     signal.signal(signal.SIGTERM, terminateAgentProcess)
     signal.signal(signal.SIGINT, terminateAgentProcess)
 
@@ -518,15 +566,15 @@ def main():
         exit(1)
 
     # Create sensor objects.  This also initializes each sensor.
-    dSensors['power'] = ina260.ina260(_PWR_SENSOR_ADDR, _BUS_NUMBER,
+    power1 = ina260.ina260(_PWR_SENSOR_ADDR, _BUS_NUMBER,
                             debug=debugMode)
-    dSensors['battemp'] = tmp102.tmp102(_BAT_TMP_SENSOR_ADDR, _BUS_NUMBER,
+    battemp = tmp102.tmp102(_BAT_TMP_SENSOR_ADDR, _BUS_NUMBER,
                             debug=debugMode)
-    dSensors['ambtemp'] = tmp102.tmp102(_AMB_TMP_SENSOR_ADDR, _BUS_NUMBER,
+    ambtemp = tmp102.tmp102(_AMB_TMP_SENSOR_ADDR, _BUS_NUMBER,
                             debug=debugMode)
+    # Create instance of SMS alert class
+    sms = smsalert.smsalert(_SMS_CALLSIGN, _SMS_PASSCODE, debug=debugMode)
 
-    # Enter main loop.
-    main_loop()
 ## end def
 
 def main_loop():
@@ -550,9 +598,13 @@ def main_loop():
             dData = {}
 
             # Get the data from the sensors.
-            result =getSensorData(dData)
+            result = getSensorData(dData)
  
-            # If get data successful, write data to data files.
+            # If get data successful, convert the data and verify thresholds.
+            if result:
+                result = convertData(dData)
+
+            # If convert data successful, write data to data files.
             if result:
                 result = writeOutputFile(dData)
 
@@ -589,4 +641,5 @@ def main_loop():
 ## end def
 
 if __name__ == '__main__':
-    main()
+    main_setup()
+    main_loop()
