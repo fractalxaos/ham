@@ -9,7 +9,7 @@ Installing and using Arednsig will give you an excellent introduction to Linux "
 </p>
 <p>
 You can find all the required software available under open source, GNU license on this project site.  Please read the
- <a href="arednsig_installation.pdf">installation instructions</a> for details on how to install Arednsig.
+ <a href=".docs/arednsig_installation.pdf">installation instructions</a> for details on how to install Arednsig.
 </p>
 </body>
 </html>
