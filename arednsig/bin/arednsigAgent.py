@@ -46,11 +46,11 @@
 import os
 import sys
 import signal
-import subprocess
 import multiprocessing
 import time
 import json
 from urllib.request import urlopen
+import rrdbase
 
    ### ENVIRONMENT ###
 
@@ -59,10 +59,7 @@ _SERVER_MODE = "primary"
 
    ### DEFAULT AREDN NODE URL ###
 
-# set url of the aredn node
-
-_DEFAULT_AREDN_NODE_URL = \
-    "{your node url}"
+_DEFAULT_AREDN_NODE_URL = "http://localnode.local.mesh/cgi-bin/status"
 
     ### FILE AND FOLDER LOCATIONS ###
 
@@ -77,13 +74,19 @@ _RRD_FILE = "/home/%s/database/arednsigData.rrd" % _USER
 
     ### GLOBAL CONSTANTS ###
 
-# max number of failed data requests allowed
+# maximum number of failed data requests allowed
 _MAX_FAILED_DATA_REQUESTS = 2
-# AREDN node data request interval in seconds
+# maximum number of http request retries  allowed
+_MAX_HTTP_RETRIES = 3
+# delay time between http request retries
+_HTTP_RETRY_DELAY = 1.1199
+# interval in seconds between data requests
 _DEFAULT_DATA_REQUEST_INTERVAL = 60
 # number seconds to wait for a response to HTTP request
-_HTTP_REQUEST_TIMEOUT = 5
+_HTTP_REQUEST_TIMEOUT = 3
 
+# interval in seconds between database updates
+_DATABASE_UPDATE_INTERVAL = 60
 # chart update interval in seconds
 _CHART_UPDATE_INTERVAL = 600
 # standard chart width in pixels
@@ -97,13 +100,14 @@ _CHART_HEIGHT = 150
 # turn on or off of verbose debugging information
 verboseMode = False
 debugMode = False
+reportUpdateFails = False
 
 # The following two items are used for detecting system faults
 # and aredn node online or offline status.
 
 # count of failed attempts to get data from aredn node
 failedUpdateCount = 0
-# detected status of aredn node device
+httpRetries = 0
 nodeOnline = False
 
 # ip address of aredn node
@@ -112,6 +116,9 @@ arednNodeUrl = _DEFAULT_AREDN_NODE_URL
 dataRequestInterval = _DEFAULT_DATA_REQUEST_INTERVAL
 # chart update interval
 chartUpdateInterval = _CHART_UPDATE_INTERVAL
+
+# rrdtool database interface handler instance
+rrdb = None
 
   ###  PRIVATE METHODS  ###
 
@@ -122,23 +129,6 @@ def getTimeStamp():
     Returns: string containing the time stamp
     """
     return time.strftime( "%m/%d/%Y %T", time.localtime() )
-##end def
-
-def getEpochSeconds(sTime):
-    """Convert the time stamp supplied in the supplied string
-       to seconds since 1/1/1970 00:00:00.
-       Parameters: 
-           sTime - the time stamp to be converted must be formatted
-                   as %m/%d/%Y %H:%M:%S
-       Returns: epoch seconds
-    """
-    try:
-        t_sTime = time.strptime(sTime, '%m/%d/%Y %H:%M:%S')
-    except Exception as exError:
-        print('%s getEpochSeconds: %s' % (getTimeStamp(), exError))
-        return None
-    tSeconds = int(time.mktime(t_sTime))
-    return tSeconds
 ##end def
 
 def setStatusToOffline():
@@ -168,8 +158,10 @@ def terminateAgentProcess(signal, frame):
            signal, frame - dummy parameters
        Returns: nothing
     """
+    # Inform downstream clients by removing output data file.
+    if os.path.exists(_OUTPUT_DATA_FILE):
+       os.remove(_OUTPUT_DATA_FILE)
     print('%s terminating arednsig agent process' % getTimeStamp())
-    setStatusToOffline()
     sys.exit(0)
 ##end def
 
@@ -182,6 +174,8 @@ def getNodeData(dData):
        Returns: True if successful,
                 or False if not successful
     """
+    global httpRetries
+
     try:
         currentTime = time.time()
         response = urlopen(arednNodeUrl, timeout=_HTTP_REQUEST_TIMEOUT)
@@ -197,15 +191,29 @@ def getNodeData(dData):
         # If no response is received from the device, then assume that
         # the device is down or unavailable over the network.  In
         # that case return None to the calling function.
-        print("%s getNodeData: %s" % (getTimeStamp(), exError))
-        return False
-    ##end try
+        httpRetries += 1
+
+        if reportUpdateFails:
+            print("%s " % getTimeStamp(), end='')
+        if reportUpdateFails or verboseMode:
+            print("http request failed (%d): %s" % \
+                (httpRetries, exError))
+
+        if httpRetries > _MAX_HTTP_RETRIES:
+            httpRetries = 0
+            return False
+        else:
+            time.sleep(_HTTP_RETRY_DELAY)
+            return getNodeData(dData)
+    ## end try
 
     if debugMode:
         print(content)
     if verboseMode:
-        print("http request successful: %.4f sec" % requestTime)
+        print("http request successful: "\
+              "%.4f seconds" % requestTime)
 
+    httpRetries = 0
     dData['content'] = content
     return True
 ##end def
@@ -306,125 +314,21 @@ def setNodeStatus(updateSuccess):
         # Set status and send a message to the log if the device
         # previously offline and is now online.
         if not nodeOnline:
-            print('%s node online' % getTimeStamp())
+            print('%s aredn node online' % getTimeStamp())
             nodeOnline = True
         return
-    elif failedUpdateCount == _MAX_FAILED_DATA_REQUESTS - 1:
+    else:
+        # The last attempt failed, so update the failed attempts
+        # count.
+        failedUpdateCount += 1
+
+    if failedUpdateCount == _MAX_FAILED_DATA_REQUESTS:
         # Max number of failed data requests, so set
         # device status to offline.
         setStatusToOffline()
-    ## end if
-    failedUpdateCount += 1
 ##end def
 
-    ### DATABASE FUNCTIONS ###
-
-def updateDatabase(dData):
-    """
-    Update the rrdtool database by executing an rrdtool system command.
-    Format the command using the data extracted from the aredn node
-    response.   
-    Parameters: dData - dictionary object containing data items to be
-                        written to the rr database file
-    Returns: True if successful, False otherwise
-    """
-    
-    time = getEpochSeconds(dData['date'])
-
-    # Format the rrdtool update command.
-    strFmt = "rrdtool update %s %s:%s:%s:%s:%s:%s:%s:%s"
-    strCmd = strFmt % (_RRD_FILE, time, dData['signal'], \
-             dData['noise'], dData['snr'], '0', \
-             '0', '0', '0')
-
-    if debugMode:
-        print("%s" % strCmd) # DEBUG
-
-    # Run the command as a subprocess.
-    try:
-        subprocess.check_output(strCmd, shell=True,  \
-                             stderr=subprocess.STDOUT)
-    except subprocess.CalledProcessError as exError:
-        print("%s: rrdtool update failed: %s" % \
-                    (getTimeStamp(), exError.output))
-        return False
-
-    if verboseMode and not debugMode:
-        print("database update successful")
-
-    return True
-##end def
-
-def createGraph(fileName, dataItem, gLabel, gTitle, gStart,
-                lower, upper, addTrend, autoScale):
-    """Uses rrdtool to create a graph of specified node data item.
-       Parameters:
-           fileName - name of file containing the graph
-           dataItem - data item to be graphed
-           gLabel - string containing a graph label for the data item
-           gTitle - string containing a title for the graph
-           gStart - beginning time of the graphed data
-           lower - lower bound for graph ordinate #NOT USED
-           upper - upper bound for graph ordinate #NOT USED
-           addTrend - 0, show only graph data
-                      1, show only a trend line
-                      2, show a trend line and the graph data
-           autoScale - if True, then use vertical axis auto scaling
-               (lower and upper parameters are ignored), otherwise use
-               lower and upper parameters to set vertical axis scale
-       Returns: True if successful, False otherwise
-    """
-    gPath = _CHARTS_DIRECTORY + fileName + ".png"
-    trendWindow = { 'end-1day': 7200,
-                    'end-4weeks': 172800,
-                    'end-12months': 604800 }
- 
-    # Format the rrdtool graph command.
-
-    # Set chart start time, height, and width.
-    strCmd = "rrdtool graph %s -a PNG -s %s -e now -w %s -h %s " \
-             % (gPath, gStart, _CHART_WIDTH, _CHART_HEIGHT)
-   
-    # Set the range and scaling of the chart y-axis.
-    if lower < upper:
-        strCmd  +=  "-l %s -u %s -r " % (lower, upper)
-    elif autoScale:
-        strCmd += "-A "
-    strCmd += "-Y "
-
-    # Set the chart ordinate label and chart title. 
-    strCmd += "-v %s -t %s " % (gLabel, gTitle)
- 
-    # Show the data, or a moving average trend line over
-    # the data, or both.
-    strCmd += "DEF:dSeries=%s:%s:LAST " % (_RRD_FILE, dataItem)
-    if addTrend == 0:
-        strCmd += "LINE1:dSeries#0400ff "
-    elif addTrend == 1:
-        strCmd += "CDEF:smoothed=dSeries,%s,TREND LINE2:smoothed#006600 " \
-                  % trendWindow[gStart]
-    elif addTrend == 2:
-        strCmd += "LINE1:dSeries#0400ff "
-        strCmd += "CDEF:smoothed=dSeries,%s,TREND LINE2:smoothed#006600 " \
-                  % trendWindow[gStart]
-     
-    if debugMode:
-        print("%s" % strCmd) # DEBUG
-    
-    # Run the formatted rrdtool command as a subprocess.
-    try:
-        result = subprocess.check_output(strCmd, \
-                     stderr=subprocess.STDOUT,   \
-                     shell=True)
-    except subprocess.CalledProcessError as exError:
-        print("rrdtool graph failed: %s" % (exError.output))
-        return False
-
-    if verboseMode:
-        print("rrdtool graph: %s\n" % result.decode('utf-8'), end='')
-    return True
-
-##end def
+    ### GRAPH FUNCTIONS ###
 
 def generateGraphs():
     """Generate graphs for display in html documents.
@@ -443,23 +347,27 @@ def generateGraphs():
 
     # 24 hour stock charts
 
-    createGraph('24hr_signal', 'S', 'dBm', 
+
+    #### REPLACE WITH createRadGraph ####
+
+
+    rrdb.createAutoGraph('24hr_signal', 'S', 'dBm', 
                 'RSSI\ -\ Last\ 24\ Hours', 'end-1day', 0, 0, 2, autoScale)
-    createGraph('24hr_snr', 'SNR', 'dB', 
+    rrdb.createAutoGraph('24hr_snr', 'SNR', 'dB', 
                 'SNR\ -\ Last\ 24\ Hours', 'end-1day', 0, 0, 2, autoScale)
 
     # 4 week stock charts
 
-    createGraph('4wk_signal', 'S', 'dBm', 
+    rrdb.createAutoGraph('4wk_signal', 'S', 'dBm', 
                 'RSSI\ -\ Last\ 4\ Weeks', 'end-4weeks', 0, 0, 2, autoScale)
-    createGraph('4wk_snr', 'SNR', 'dB', 
+    rrdb.createAutoGraph('4wk_snr', 'SNR', 'dB', 
                 'SNR\ -\ Last\ 4\ Weeks', 'end-4weeks', 0, 0, 2, autoScale)
 
     # 12 month stock charts
 
-    createGraph('12m_signal', 'S', 'dBm', 
+    rrdb.createAutoGraph('12m_signal', 'S', 'dBm', 
                 'RSSI\ -\ Past\ Year', 'end-12months', 0, 0, 2, autoScale)
-    createGraph('12m_snr', 'SNR', 'dB', 
+    rrdb.createAutoGraph('12m_snr', 'SNR', 'dB', 
                 'SNR\ -\ Past\ Year', 'end-12months', 0, 0, 2, autoScale)
 
     if verboseMode:
@@ -471,12 +379,12 @@ def getCLarguments():
     """Get command line arguments.  There are four possible arguments
           -d turns on debug mode
           -v turns on verbose debug mode
-          -t sets the aredn node query interval
+          -p sets the aredn node query interval
           -u sets the url of the aredn nodeing device
        Returns: nothing
     """
     global verboseMode, debugMode, dataRequestInterval, \
-           arednNodeUrl
+           arednNodeUrl, reportUpdateFails
 
     index = 1
     while index < len(sys.argv):
@@ -485,9 +393,13 @@ def getCLarguments():
         elif sys.argv[index] == '-d':
             verboseMode = True
             debugMode = True
+        elif sys.argv[index] == '-r':
+            reportUpdateFails = True
+
+        # Update period and url options
         elif sys.argv[index] == '-p':
             try:
-                dataRequestInterval = abs(int(sys.argv[index + 1]))
+                dataRequestInterval = abs(float(sys.argv[index + 1]))
             except:
                 print("invalid polling period")
                 exit(-1)
@@ -499,35 +411,25 @@ def getCLarguments():
             index += 1
         else:
             cmd_name = sys.argv[0].split('/')
-            print("Usage: %s [-d] [-v] [-p seconds] [-u url]" % cmd_name[-1])
+            print("Usage: %s [-v|d] [-p seconds] [-u url]" % cmd_name[-1])
             exit(-1)
         index += 1
 ##end def
 
-def main():
+def setup():
     """Handles timing of events and acts as executive routine managing
        all other functions.
        Parameters: none
        Returns: nothing
     """
-    global dataRequestInterval
-
-    signal.signal(signal.SIGTERM, terminateAgentProcess)
-    signal.signal(signal.SIGINT, terminateAgentProcess)
-
-    print('===================')
-    print('%s starting up arednsig agent process' % \
-                  (getTimeStamp()))
-
-    # last time output JSON file updated
-    lastDataRequestTime = -1
-    # last time charts generated
-    lastChartUpdateTime = - 1
-    # last time the rrdtool database updated
-    lastDatabaseUpdateTime = -1
+    global rrdb
 
     ## Get command line arguments.
     getCLarguments()
+
+    print('======================================================')
+    print('%s starting up arednsig agent process' % \
+                  (getTimeStamp()))
 
     ## Exit with error if rrdtool database does not exist.
     if not os.path.exists(_RRD_FILE):
@@ -535,6 +437,22 @@ def main():
               'use createArednsigRrd script to ' \
               'create rrdtool database\n')
         exit(1)
+
+    signal.signal(signal.SIGTERM, terminateAgentProcess)
+    signal.signal(signal.SIGINT, terminateAgentProcess)
+
+    # Define object for calling rrdtool database functions.
+    rrdb = rrdbase.rrdbase( _RRD_FILE, _CHARTS_DIRECTORY, _CHART_WIDTH, \
+                            _CHART_HEIGHT, verboseMode, debugMode )
+## end def
+
+def loop():
+    # last time output JSON file updated
+    lastDataRequestTime = -1
+    # last time charts generated
+    lastChartUpdateTime = -1
+    # last time the rrdtool database updated
+    lastDatabaseUpdateTime = -1
  
     ## main loop
     while True:
@@ -558,9 +476,15 @@ def main():
             if result:
                 writeOutputFile(dData)
 
-            # If write output file successful, update the database.
-            if result:
-                result = updateDatabase(dData)
+            # At the rrdtool database update interval, update the database.
+            if result and (currentTime - lastDatabaseUpdateTime > \
+                           _DATABASE_UPDATE_INTERVAL):   
+                lastDatabaseUpdateTime = currentTime
+                # If write output file successful, update the database.
+                if result:
+                    result = rrdb.updateDatabase(dData['date'], \
+                             dData['signal'], dData['noise'], dData['snr'], \
+                            '0', '0', '0', '0')
 
             # Set the node status to online or offline depending on the
             # success or failure of the above operations.
@@ -571,7 +495,7 @@ def main():
         if currentTime - lastChartUpdateTime > chartUpdateInterval:
             lastChartUpdateTime = currentTime
             p = multiprocessing.Process(target=generateGraphs, args=())
-            #p.start()
+            p.start()
 
         # Relinquish processing back to the operating system until
         # the next update interval.
@@ -586,9 +510,9 @@ def main():
         if remainingTime > 0.0:
             time.sleep(remainingTime)
     ## end while
-    return
 ## end def
 
 if __name__ == '__main__':
-    main()
+    setup()
+    loop()
 
