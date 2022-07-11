@@ -1,4 +1,4 @@
-#!/usr/bin/python -u
+#!/usr/bin/python3 -u
 # The -u option turns off block buffering of python output. This assures
 # that output streams to stdout when output happens.
 #
@@ -25,13 +25,20 @@
 #    along with this program.  If not, see http://www.gnu.org/license.
 #
 # Revision History
-#   * v10 23 Nov 2019 by J L Owrey; first release
+#   * v10 24 Nov 2019 by J L Owrey; first release
+#   * v11 03 Oct 2020 by J L owrey; upgraded to Python 3
 #
 # This script has been tested with the following
 #
-#     Python 2.7.15rc1 (default, Nov 12 2018, 14:31:15) 
-#     [GCC 7.3.0] on linux2
+#     Python 3.8.10 (default, Mar 15 2022, 12:22:08) 
+#     [GCC 9.4.0] on linux
 #2345678901234567890123456789012345678901234567890123456789012345678901234567890
+
+# Environment Setup
+
+_WINDOWS_COM_PORT = 'COM5'
+_LINUX_COM_PORT = '/dev/ttyUSB0'
+_FT991_BAUD_RATE = 9600
 
 import os, sys, serial, time
 import ft991 # module should be in same directory as this utility
@@ -67,7 +74,7 @@ def doUserCommand():
     # When command line arguments have not been provided,
     # use interactive mode and give the user a prompt.
     if commandLineOption == '':
-        cmd = raw_input('>').strip()
+        cmd = input('>').strip()
     # If command line arguments have been provided, then
     # execute the command non-interactively.
     else:
@@ -93,7 +100,7 @@ def doUserCommand():
     elif cmd == 'x':
         exit(0)
     else:
-        print "invalid command"
+        print("invalid command")
 ## end def
 
 def backupMemorySettings():
@@ -108,11 +115,11 @@ def backupMemorySettings():
     # backed up memory settings.
     fileName = getFileName(memoryBackupFile)
     # Read the memory settings from the FT991...
-    print 'Backing up memory settings...'
+    print('Backing up memory settings...')
     settings = readMemorySettings()
     # and write them to the file.
     writeToFile(settings, fileName)
-    print 'Memory settings backed up to \'%s\'' % fileName
+    print('Memory settings backed up to \'%s\'' % fileName)
 ## end def
 
 def restoreMemorySettings():
@@ -127,16 +134,16 @@ def restoreMemorySettings():
     # memory settings.  Also make sure the file exists.
     fileName = getFileName(memoryBackupFile)
     if not os.path.isfile(fileName):
-        print 'File not found.\n' \
+        print('File not found.\n' \
               'Please enter a valid file name.  Be sure to correctly ' \
-              'enter\nthe full path name or relative path name of the file.'
+              'enter\nthe full path name or relative path name of the file.')
         return
     # Read the memory settings from the file...
-    print 'Restoring memory settings...'
+    print('Restoring memory settings...')
     settings = readFromFile(fileName)
     # and write them to the FT991.
     writeMemorySettings(settings)
-    print 'Memory settings restored from \'%s\'' % fileName
+    print('Memory settings restored from \'%s\'' % fileName)
 ## end def
 
 def backupMenuSettings():
@@ -151,11 +158,11 @@ def backupMenuSettings():
     # backed up menu settings.
     fileName = getFileName(menuBackupFile)
     # Read the menu settings from the FT991...
-    print 'Backing up menu settings...'
+    print('Backing up menu settings...')
     settings = readMenuSettings()
     # and write them to the file.
     writeToFile(settings, fileName)
-    print 'Menu settings backed up to \'%s\'' % fileName
+    print('Menu settings backed up to \'%s\'' % fileName)
 ## end def
 
 def restoreMenuSettings():
@@ -170,16 +177,16 @@ def restoreMenuSettings():
     # menu settings.  Also make sure the file exists.
     fileName = getFileName(menuBackupFile)
     if not os.path.isfile(fileName):
-        print 'File not found.\n' \
+        print('File not found.\n' \
               'Please enter a valid file name.  Be sure to correctly ' \
-              'enter\nthe full path name or relative path name of the file.'
+              'enter\nthe full path name or relative path name of the file.')
         return
     # Read the menu settings from the file...
-    print 'Restoring menu settings...'
+    print('Restoring menu settings...')
     settings = readFromFile(fileName)
     # and write them to the FT991.
     writeMenuSettings(settings)
-    print 'Menu settings restored from \'%s\'' % fileName
+    print('Menu settings restored from \'%s\'' % fileName)
 ## end def
 
 def passThroughMode():
@@ -190,11 +197,11 @@ def passThroughMode():
     Parameters: none
     Returns: nothing
     """
-    print 'Entering passthrough mode. Type \'exit\' to exit mode.'
+    print('Entering passthrough mode. Type \'exit\' to exit mode.')
     while(True):
         # Prompt the user to enter an FT991 CAT command, and
         # process the  command string.
-        sCommand = raw_input('CAT# ').upper()
+        sCommand = input('CAT# ').upper()
         if sCommand == 'EXIT': # exit this utility
             break
         # If the user fails to end a CAT command with a semi-colon,
@@ -208,7 +215,7 @@ def passThroughMode():
             ft991.sendSerial(sCommand)
             sResult = ft991.receiveSerial();
             if sResult != '':
-                print sResult
+                print(sResult)
 ## end def
 
 def toggleVerboseMode():
@@ -222,10 +229,10 @@ def toggleVerboseMode():
     """
     if ft991.verbose:
         ft991.verbose = False
-        print 'Verbose is OFF'
+        print('Verbose is OFF')
     else:
         ft991.verbose = True
-        print 'Verbose is ON'  
+        print('Verbose is ON')  
 ## end def
 
 def getFileName(defaultFile):
@@ -242,7 +249,7 @@ def getFileName(defaultFile):
     if commandLineOption != '':
         return defaultFile
     # Otherwise query the user for a file name
-    fileName = raw_input('Enter file name or <CR> for default: ')
+    fileName = input('Enter file name or <CR> for default: ')
     if fileName == '':
         return defaultFile
     else:
@@ -366,11 +373,11 @@ def writeMemorySettings(lSettings):
             ft991.setNARstate(dItem['narstate'])
             # Set Notch state
             ft991.setNotchState((dItem['notchstate'], dItem['notchfreq']))
-        except Exception, e:
-            print 'Memory settings restore operation failed. Most likely\n' \
+        except Exception as e:
+            print('Memory settings restore operation failed. Most likely\n' \
                   'this is due to the backup settings file corrupted or\n' \
-                  'incorrectly formatted. Look for the following error: \n'
-            print e
+                  'incorrectly formatted. Look for the following error: \n')
+            print(e)
             raise
             #exit(1)
     # end for
@@ -411,7 +418,7 @@ def writeMenuSettings(lSettings):
         # Send the pre-formatted menu setting to the FT991.
         sResult = ft991.sendCommand(item)
         if sResult.find('?;') > -1:
-            print 'error restoring menu setting: %s' % item
+            print('error restoring menu setting: %s') % item
             exit(1)
 ## end def
 
@@ -486,7 +493,7 @@ p - enter pass through mode
 v - toggle verbose mode
 x - exit this program
 """
-    print splash
+    print(splash)
 ## end def
 
 def getCLarguments():
@@ -518,7 +525,7 @@ def getCLarguments():
         if sys.argv[index] == '-f': # Backup file provided.
             # Get the backup file name.
             if len(sys.argv) < index + 2:
-                print "-f option requires file name"
+                print("-f option requires file name")
                 exit(1);
             fileName = sys.argv[index + 1]
             index += 1
@@ -535,7 +542,7 @@ def getCLarguments():
         elif sys.argv[index] == '-d': # set debug mode 'ON'
             ft991.debug = True
         else:
-            print usage
+            print(usage)
             exit(-1)
         index += 1
     ## end while
@@ -553,8 +560,16 @@ def main():
     Returns: nothing
     """
     getCLarguments() # get command line options
-    
-    ft991.begin() # open com port session to FT991
+
+    # Determine OS type and set device port accordingly.
+    #OS_type = sys.platform
+    #if 'WIN' in OS_type.upper():
+    if 'WIN' in sys.platform.upper():
+        port = _WINDOWS_COM_PORT
+    else:
+        port = _LINUX_COM_PORT
+
+    ft991.begin(port, _FT991_BAUD_RATE) # open com port session to FT991
 
     # Process command line options (if any).
     if commandLineOption != '':

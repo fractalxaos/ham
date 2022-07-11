@@ -1,4 +1,4 @@
-#!/usr/bin/python -u
+#!/usr/bin/python3 -u
 # The -u option turns off block buffering of python output. This assures
 # that output streams to stdout when output happens.
 #
@@ -31,11 +31,12 @@
 #
 # Revision History
 #   * v10 24 Nov 2019 by J L Owrey; first release
+#   * v11 03 Oct 2020 by J L owrey; upgraded to Python 3
 #
 # This script has been tested with the following
 #
-#     Python 2.7.15rc1 (default, Nov 12 2018, 14:31:15) 
-#     [GCC 7.3.0] on linux2
+#     Python 3.8.10 (default, Mar 15 2022, 12:22:08) 
+#     [GCC 9.4.0] on linux
 #2345678901234567890123456789012345678901234567890123456789012345678901234567890
 
 import sys, serial, time
@@ -68,7 +69,7 @@ dMode = { 'LSB':'1', 'USB':'2', 'CW':'3', 'FM':'4', 'AM':'5',
 dShift = { 'OFF':'0', '+RPT':'1', '-RPT':'2' }
 
 # Power settings
-dPower = { 'LOW':5, 'MID':020, 'HIGH':50, 'MAX':100 }
+dPower = { 'LOW':'5', 'MID':'020', 'HIGH':'50', 'MAX':'100' }
 
 # Repeater signaling modes
 dEncode = { 'OFF':'0', 'ENC/DEC':'1', 'TONE ENC':'2',
@@ -154,11 +155,11 @@ def getMemory(memloc):
     dMem['memloc'] = str(int(memloc))
     dMem['vfoa'] = str(float(vfoa) / 10**6)
     dMem['clarfreq'] = str(int(clarfreq))
-    dMem['rxclar'] = bState.keys()[bState.values().index(rxclar)]
-    dMem['txclar'] = bState.keys()[bState.values().index(txclar)]
-    dMem['mode'] = dMode.keys()[dMode.values().index(mode)]
-    dMem['encode'] = dEncode.keys()[dEncode.values().index(encode)]
-    dMem['rpoffset'] = dShift.keys()[dShift.values().index(rpoffset)]
+    dMem['rxclar'] = list(bState.keys())[list(bState.values()).index(rxclar)]
+    dMem['txclar'] = list(bState.keys())[list(bState.values()).index(txclar)]
+    dMem['mode'] = list(dMode.keys())[list(dMode.values()).index(mode)]
+    dMem['encode'] = list(dEncode.keys())[list(dEncode.values()).index(encode)]
+    dMem['rpoffset'] = list(dShift.keys())[list(dShift.values()).index(rpoffset)]
     dMem['tag'] = tag.strip()
 
     return dMem
@@ -173,7 +174,7 @@ def getCTCSS():
     # Get result CTCSS tone
     sResult = sendCommand('CN00;')
     tone = sResult[4:7]
-    return dTones.keys()[dTones.values().index(tone)]
+    return list(dTones.keys())[list(dTones.values()).index(tone)]
 ## end def
 
 def getDCS():
@@ -185,7 +186,7 @@ def getDCS():
     # Get result of CN01 command
     sResult = sendCommand('CN01;')
     dcs = sResult[4:7]
-    return dDcs.keys()[dDcs.values().index(dcs)]
+    return list(dDcs.keys())[list(dDcs.values()).index(dcs)]
 ## end def
 
 def getRxClarifier():
@@ -198,7 +199,7 @@ def getRxClarifier():
     # supplied - most likely a "key not found" error.
     sResult = sendCommand('RT;')
     state = sResult[2]
-    return bState.keys()[bState.values().index(state)]
+    return list(bState.keys())[list(bState.values()).index(state)]
 ## end def
 
 def getTxClarifier():
@@ -211,7 +212,7 @@ def getTxClarifier():
     # supplied - most likely a "key not found" error.
     sResult = sendCommand('XT;')
     state = sResult[2]
-    return bState.keys()[bState.values().index(state)]
+    return list(bState.keys())[list(bState.values()).index(state)]
 ## end def
 
 def getPower():
@@ -233,7 +234,7 @@ def getPreamp():
     # Get result of PA0 command
     sResult = sendCommand('PA0;')
     ipo = sResult[3:4]
-    return dPreamp.keys()[dPreamp.values().index(ipo)]
+    return list(dPreamp.keys())[list(dPreamp.values()).index(ipo)]
 ## end def
 
 def getRfAttn():
@@ -246,7 +247,7 @@ def getRfAttn():
     if sResult == '?;':
         return 'NA'
     attn = sResult[3:4]
-    return bState.keys()[bState.values().index(attn)]
+    return list(bState.keys())[list(bState.values()).index(attn)]
 ## end def
 
 def getNoiseBlanker():
@@ -257,7 +258,7 @@ def getNoiseBlanker():
     """
     sResult = sendCommand('NB0;')
     nb = sResult[3:4]
-    return bState.keys()[bState.values().index(nb)]
+    return list(bState.keys())[list(bState.values()).index(nb)]
 ## end def
 
 def getIFshift():
@@ -324,7 +325,7 @@ def getDNRstate():
     if sResult == '?;':
         return 'NA'
     state = sResult[3:4]
-    return bState.keys()[bState.values().index(state)]
+    return list(bState.keys())[list(bState.values()).index(state)]
 ## end def
 
 def getDNRalgorithm():
@@ -348,7 +349,7 @@ def getDNFstate():
     if sResult == '?;':
         return 'NA'
     state = sResult[3:4]
-    return bState.keys()[bState.values().index(state)]
+    return list(bState.keys())[list(bState.values()).index(state)]
 ## end def
 
 def getNARstate():
@@ -361,7 +362,7 @@ def getNARstate():
     if sResult == '?;':
         return 'NA'
     state = sResult[3:4]
-    return dNAR.keys()[dNAR.values().index(state)]
+    return list(dNAR.keys())[list(dNAR.values()).index(state)]
 ## end def
 
 def getNotchState():
@@ -376,7 +377,7 @@ def getNotchState():
     if sResult == '?;':
         return ('NA', 'NA')
     state = sResult[6:7]
-    state = bState.keys()[bState.values().index(state)]
+    state = list(bState.keys())[list(bState.values()).index(state)]
     sResult = sendCommand('BP01;')
     freq = int(sResult[4:7])
     return (state, freq)
@@ -792,7 +793,7 @@ def sendCommand(sCmd):
     # correct formatting of commands before they are actually sent
     # to the FT991.
     if verbose:
-        print sCmd,
+        print(sCmd, end='')
     # In debug mode do not actually send commands to the FT991.
     if debug:
         return ''
@@ -804,7 +805,7 @@ def sendCommand(sCmd):
     sendSerial(sCmd)
     sResult  = receiveSerial();
     if verbose:
-        print sResult
+        print(sResult)
     return sResult
 ## end def
 
@@ -812,7 +813,7 @@ def sendCommand(sCmd):
 # Low level serial communications functions.                                #
 #############################################################################
 
-def begin(baud=9600):
+def begin(comPort, baud=9600):
     """
     Description: Initiates a serial connection the the FT991. Should
                  always be called before sending commands to or
@@ -823,28 +824,21 @@ def begin(baud=9600):
     """
     global ptrDevice
 
-    # Determine OS type and set device port accordingly.
-    OS_type = sys.platform
-    if 'WIN' in OS_type.upper():
-        port = 'COM5'
-    else:
-        port = '/dev/ttyUSB0'
-
     # In debug mode do not actually send commands to the FT991.
     if debug:
         return
 
     # Create a FT991 object for serial communication
     try:
-        ptrDevice = serial.Serial(port, baud,      
+        ptrDevice = serial.Serial(comPort, baud,      
                                   timeout=_INTERFACE_TIMEOUT)
-    except Exception, error:
+    except Exception as error:
         if str(error).find('could not open port') > -1:
-            print 'Please be sure the usb cable is properly connected to\n' \
+            print('Please be sure the usb cable is properly connected to\n' \
                   'your FT991 and to your computer, and that the FT991 is\n' \
-                  'turned ON.  Then restart this program.'
+                  'turned ON.  Then restart this program.')
         else:
-            print 'Serial port error: %s\n' % error
+            print('Serial port error: %s\n' % error)
         exit(1)         
     time.sleep(.1) # give the connection a moment to settle
     return ptrDevice
@@ -874,9 +868,14 @@ def receiveSerial(termchar=';'):
             if time.time() - startTime > _SERIAL_READ_TIMEOUT:
                 break # Character waiting timer has timed out.
         # Return empty string if a character has not become available.
-        if c == '':
+        if c == '' or c == b'\xfe':
             break;
-        answer += c # Form a string from the received characters.
+        try:
+            # Form a string from the received characters.
+            answer += c.decode('utf_8')
+        except Exception as e:
+            print('serial rx error: %s' % e)
+        #answer += str(c) # Form a string from the received characters.
         charCount += 1 # Increment character count.
         # If a semicolon has arrived then the FT991 has completed
         # sending output to the serial port so stop reading characters.
@@ -898,7 +897,7 @@ def sendSerial(command):
     # In debug we only want to see the output of the command formatter,
     # not actually send commands to the FT991.  Debug mode should be
     # used in conjunction with verbose mode.
-    ptrDevice.write(command) # Send command string to FT991
+    ptrDevice.write(command.encode('utf_8')) # Send command string to FT991
     ptrDevice.flushOutput() # Flush serial buffer to prevent overflows
 ## end def
 
@@ -918,8 +917,16 @@ def main():
     verbose = True
     debug = False
 
+    # Determine OS type and set device port accordingly.
+    OS_type = sys.platform
+    if 'WIN' in OS_type.upper():
+        port = 'COM5'
+    else:
+        port = '/dev/ttyUSB0'
+
     # Instantiate serial connection to FT991
-    begin()
+    begin(port, 9600)
+
     # Set and receive a memory channel
     dMem = {'memloc': '98', 'vfoa': '146.52', 'shift': 'OFF', \
             'mode': 'FM', 'encode': 'TONE ENC', 'tag': 'KA7JLO', \
