@@ -38,7 +38,7 @@
 
 _WINDOWS_COM_PORT = 'COM5'
 _LINUX_COM_PORT = '/dev/ttyUSB0'
-_FT991_BAUD_RATE = 9600
+_FT991_BAUD_RATE = 4800
 
 import os, sys, serial, time
 import ft991 # module should be in same directory as this utility
