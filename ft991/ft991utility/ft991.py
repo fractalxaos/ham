@@ -31,12 +31,9 @@
 #
 # Revision History
 #   * v10 24 Nov 2019 by J L Owrey; first release
-#   * v11 03 Oct 2020 by J L owrey; upgraded to Python 3
+#   * v11 03 Oct 2020 by J L Owrey; upgraded to Python 3
+#   * v12 24 Aug 2022 by J L Owrey; added methods to get and set APF
 #
-# This script has been tested with the following
-#
-#     Python 3.8.10 (default, Mar 15 2022, 12:22:08) 
-#     [GCC 9.4.0] on linux
 #2345678901234567890123456789012345678901234567890123456789012345678901234567890
 
 import sys, serial, time
@@ -173,6 +170,8 @@ def getCTCSS():
     """
     # Get result CTCSS tone
     sResult = sendCommand('CN00;')
+    if sResult == '?;':
+        return 'NA'
     tone = sResult[4:7]
     return list(dTones.keys())[list(dTones.values()).index(tone)]
 ## end def
@@ -185,6 +184,8 @@ def getDCS():
     """
     # Get result of CN01 command
     sResult = sendCommand('CN01;')
+    if sResult == '?;':
+        return 'NA'
     dcs = sResult[4:7]
     return list(dDcs.keys())[list(dDcs.values()).index(dcs)]
 ## end def
@@ -198,6 +199,8 @@ def getRxClarifier():
     # An exception will automatically be raised if incorrect data is
     # supplied - most likely a "key not found" error.
     sResult = sendCommand('RT;')
+    if sResult == '?;':
+        return 'NA'
     state = sResult[2]
     return list(bState.keys())[list(bState.values()).index(state)]
 ## end def
@@ -211,6 +214,8 @@ def getTxClarifier():
     # An exception will automatically be raised if incorrect data is
     # supplied - most likely a "key not found" error.
     sResult = sendCommand('XT;')
+    if sResult == '?;':
+        return 'NA'
     state = sResult[2]
     return list(bState.keys())[list(bState.values()).index(state)]
 ## end def
@@ -222,17 +227,22 @@ def getPower():
     Returns: string containing the power in Watts
     """
     sResult = sendCommand('PC;')
+    if sResult == '?;':
+        return 'NA'
     return sResult[2:5]
 ##end def
 
 def getPreamp():
     """
-    Description:  Gets the state of the Rx preamplifier.
+    Description:  Gets the state of the Rx preamplifier.  The state of
+    the preamplifier is the same as the IPO state.
     Parameters: none
     Returns: string containing the state of the preamplifier.
     """
     # Get result of PA0 command
     sResult = sendCommand('PA0;')
+    if sResult == '?;':
+        return 'NA'
     ipo = sResult[3:4]
     return list(dPreamp.keys())[list(dPreamp.values()).index(ipo)]
 ## end def
@@ -257,6 +267,8 @@ def getNoiseBlanker():
     Returns: string containing the state of the noise blanker.
     """
     sResult = sendCommand('NB0;')
+    if sResult == '?;':
+        return 'NA'
     nb = sResult[3:4]
     return list(bState.keys())[list(bState.values()).index(nb)]
 ## end def
@@ -267,8 +279,6 @@ def getIFshift():
     Parameters: none
     Returns: string containing the amount of shift.
     """
-    if getRfAttn() == 'NA':
-        return 'NA'
     sResult = sendCommand('IS0;')
     if sResult == '?;':
         return 'NA'
@@ -284,9 +294,9 @@ def getIFwidth():
     Parameters: none
     Returns: string containing the amount index number.
     """
-    if getRfAttn() == 'NA':
-        return 'NA'
     sResult = sendCommand('SH0;')
+    if sResult == '?;':
+        return 'NA'
     width = int(sResult[3:5])
     return width
 ## end def
@@ -297,22 +307,42 @@ def getContour():
     Parameters: none
     Returns: list object containing the four parameters.
     """
-    if getRfAttn() == 'NA':
-        return [ 'NA', 'NA', 'NA', 'NA' ]
+    #if getRfAttn() == 'NA':
+    #    return [ 'NA', 'NA', 'NA', 'NA' ]
     lContour = []
 
     sResult = sendCommand('CO00;')
+    if sResult == '?;':
+        return 'NA'
     lContour.append(int(sResult[4:8]))
 
     sResult = sendCommand('CO01;')
+    if sResult == '?;':
+        return 'NA'
     lContour.append(int(sResult[4:8]))
+
+    return lContour
+## end def
+
+def getAPF():
+    """
+    Description:  Gets the audio peak filter parameters.
+    Parameters: none
+    Returns: list object containing the four parameters.
+    """
+    lapf = []
 
     sResult = sendCommand('CO02;')
-    lContour.append(int(sResult[4:8]))
+    if sResult == '?;':
+        return 'NA'
+    lapf.append(int(sResult[4:8]))
 
     sResult = sendCommand('CO03;')
-    lContour.append(int(sResult[4:8]))
-    return lContour
+    if sResult == '?;':
+        return 'NA'
+    lapf.append(int(sResult[4:8]))
+
+    return lapf
 ## end def
 
 def getDNRstate():
@@ -335,6 +365,8 @@ def getDNRalgorithm():
     Returns: a number between 1 and 16 inclusive
     """
     sResult = sendCommand('RL0;')
+    if sResult == '?;':
+        return 'NA'
     algorithm = int(sResult[3:5])
     return algorithm
 ## end def
@@ -651,7 +683,23 @@ def setContour(lParams):
     if lParams[0] == 'NA':
         return
 
-    for inx in range(4):
+    for inx in range(2):
+        sCmd = 'CO0%d%04d' % (inx, int(lParams[inx]))
+        sResult = sendCommand(sCmd)
+        if sResult == '?;':
+            raise Exception('setContour error')
+## end def
+
+def setAPF(lParams):
+    """
+    Description:  Sends a formatted CO command that sets contour parameters
+    Parameters: lParams - list object containing the parameters
+    Returns: nothing
+    """
+    if lParams[0] == 'NA':
+        return
+
+    for inx in range(2,4):
         sCmd = 'CO0%d%04d' % (inx, int(lParams[inx]))
         sResult = sendCommand(sCmd)
         if sResult == '?;':
@@ -755,28 +803,28 @@ def parseCsvData(sline):
     # Store the parsed items with the appropriate key in the dictionary object.
     dChan['memloc'] = lchan[0]
     dChan['vfoa'] = lchan[1]
-    dChan['vfob'] = lchan[2]
-    dChan['rpoffset'] = lchan[3]
-    dChan['mode'] = lchan[4]
-    dChan['tag'] = lchan[5]
-    dChan['encode'] = lchan[6]
-    dChan['tone'] = lchan[7]
-    dChan['dcs'] = lchan[8]
-    dChan['clarfreq'] = lchan[9]
-    dChan['rxclar'] = lchan[10]
-    dChan['txclar'] = lchan[11]
-    dChan['preamp'] = lchan[12]
-    dChan['rfattn'] = lchan[13]
-    dChan['nblkr']  = lchan[14]
-    dChan['shift'] = lchan[15]
-    dChan['width'] = lchan[16]
-    dChan['contour'] = [ lchan[17], lchan[18], lchan[19], lchan[20] ]
-    dChan['dnrstate'] = lchan[21]
-    dChan['dnralgorithm'] = lchan[22]
-    dChan['dnfstate'] = lchan[23]
-    dChan['narstate'] = lchan[24]
-    dChan['notchstate'] = lchan[25]
-    dChan['notchfreq'] = lchan[26]
+    dChan['rpoffset'] = lchan[2]
+    dChan['mode'] = lchan[3]
+    dChan['tag'] = lchan[4]
+    dChan['encode'] = lchan[5]
+    dChan['tone'] = lchan[6]
+    dChan['dcs'] = lchan[7]
+    dChan['clarfreq'] = lchan[8]
+    dChan['rxclar'] = lchan[9]
+    dChan['txclar'] = lchan[10]
+    dChan['preamp'] = lchan[11]
+    dChan['rfattn'] = lchan[12]
+    dChan['nblkr']  = lchan[13]
+    dChan['shift'] = lchan[14]
+    dChan['width'] = lchan[15]
+    dChan['contour'] = [ lchan[16], lchan[17] ]
+    dChan['afp'] = [ lchan[18], lchan[19] ]
+    dChan['dnrstate'] = lchan[20]
+    dChan['dnralgorithm'] = lchan[21]
+    dChan['dnfstate'] = lchan[22]
+    dChan['narstate'] = lchan[23]
+    dChan['notchstate'] = lchan[24]
+    dChan['notchfreq'] = lchan[25]
     return dChan # return the dictionary object
 ## end def
 
@@ -873,8 +921,9 @@ def receiveSerial(termchar=';'):
         try:
             # Form a string from the received characters.
             answer += c.decode('utf_8')
+            #xpass
         except Exception as e:
-            print('serial rx error: %s' % e)
+            print('serial rx error: %s  chr=%s' % (e, c))
         #answer += str(c) # Form a string from the received characters.
         charCount += 1 # Increment character count.
         # If a semicolon has arrived then the FT991 has completed

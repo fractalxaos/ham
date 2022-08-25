@@ -26,19 +26,20 @@
 #
 # Revision History
 #   * v10 24 Nov 2019 by J L Owrey; first release
-#   * v11 03 Oct 2020 by J L owrey; upgraded to Python 3
+#   * v11 03 Oct 2020 by J L Owrey; upgraded to Python 3
+#   * v12 24 Aug 2022 by J L Owrey; fixed error occurring when setting
+#     the FT991 IF filter width for unsupported modulation modes; added
+#     command line parameter to set the CAT baud rate; fixed error that
+#     occurs when the restore menu settings tries to restore the CAT baud
+#     rate setting
 #
-# This script has been tested with the following
-#
-#     Python 3.8.10 (default, Mar 15 2022, 12:22:08) 
-#     [GCC 9.4.0] on linux
 #2345678901234567890123456789012345678901234567890123456789012345678901234567890
 
 # Environment Setup
 
 _WINDOWS_COM_PORT = 'COM5'
 _LINUX_COM_PORT = '/dev/ttyUSB0'
-_FT991_BAUD_RATE = 4800
+_DEFAULT_FT991_BAUD_RATE = 4800
 
 import os, sys, serial, time
 import ft991 # module should be in same directory as this utility
@@ -56,6 +57,7 @@ _DEBUG = False
 menuBackupFile = _DEFAULT_MENU_SETTINGS_FILE
 memoryBackupFile = _DEFAULT_MEMORY_SETTINGS_FILE
 commandLineOption = ''
+baudRate = _DEFAULT_FT991_BAUD_RATE
 
 # Command processing functions
 
@@ -270,7 +272,7 @@ def readMemorySettings():
              contained in the list.
     """
     # Define the column headers as the first item in the list.
-    lSettings = [ 'Memory Ch,VFO_A,VFO_B,' \
+    lSettings = [ 'Memory Ch,VFO_A,' \
                   'RepeaterShift,Mode,Tag,Encoding,Tone,DCS,' \
                   'Clarifier,RxClar,TxClar,PreAmp,RfAttn,NB,IFshift,' \
                   'IFwidthIndex,ContourState,ContourFreq,' \
@@ -297,6 +299,7 @@ def readMemorySettings():
         shift = ft991.getIFshift()
         width = ft991.getIFwidth()
         lContour = ft991.getContour()
+        lAFP = ft991.getAPF()
         dnrstate = ft991.getDNRstate()
         dnralgorithm = ft991.getDNRalgorithm()
         dnfstate = ft991.getDNFstate()
@@ -305,14 +308,14 @@ def readMemorySettings():
         # getMemory, above, stores data in a dictionary object.  Format
         # the data in this object, as well as, the DCS code and CTCSS
         # tone into a comma-delimited string.
-        sCsvFormat = '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,' \
+        sCsvFormat = '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,' \
                      '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s' % \
                (
-                 dMem['memloc'], dMem['vfoa'], '', \
+                 dMem['memloc'], dMem['vfoa'], \
                  dMem['rpoffset'], dMem['mode'], dMem['tag'], dMem['encode'], \
                  tone, dcs, dMem['clarfreq'], dMem['rxclar'], \
                  dMem['txclar'], preamp, rfattn, nblkr, shift, width, \
-                 lContour[0], lContour[1], lContour[2], lContour[3], \
+                 lContour[0], lContour[1], lAFP[0], lAFP[1], \
                  dnrstate, dnralgorithm, dnfstate, narstate, notch[0],
                  notch[1]
                )
@@ -358,12 +361,19 @@ def writeMemorySettings(lSettings):
             ft991.setRfAttn(dItem['rfattn'])
             # Set Noise Blanker state
             ft991.setNoiseBlanker(dItem['nblkr'])
-            # Set IF shift amount
-            ft991.setIFshift(dItem['shift'])
-            # Set IF width index
-            ft991.setIFwidth(dItem['width'])
-            # Set Contour parameters
+            # v12 24 Aug 2022 by J L Owrey; fixed error occurring when setting
+            # the FT991 IF filter width for unsupported modulation modes
+            if dItem['mode'] in ['LSB', 'USB', 'CW', 'RTTY-LSB',
+                                 'RTTY-USB', 'DATA-LSB', 'DATA-USB']:
+                # Set IF width index
+                ft991.setIFwidth(dItem['width'])
+                # Set IF shift amount
+                ft991.setIFshift(dItem['shift'])
+            # Set Contour parameters; also sets audio peak filter (APF)
             ft991.setContour(dItem['contour'])
+            if dItem['mode'] in ['CW']:
+                # Set audio peak filter (APF)
+                ft991.setAPF(dItem['apf'])
             # Set DNR state and algorithm
             ft991.setDNRstate(dItem['dnrstate'])
             ft991.setDNRalgorithm(dItem['dnralgorithm'])
@@ -414,6 +424,13 @@ def writeMenuSettings(lSettings):
         # in the FT-991 returning an error.  The only read-only
         # setting is the "Radio ID" setting.
         if item.find('EX087') > -1:
+            continue;
+        # Do not change the CAT baud rate while restoring menu
+        # items as this could result in failure to restore menu
+        # items after item #31.  This situation might happen if
+        # the FT991 CAT baud rate gets changed some time after
+        # the menu settings have been backed up. 
+        if item.find('EX031') > -1:
             continue;
         # Send the pre-formatted menu setting to the FT991.
         sResult = ft991.sendCommand(item)
@@ -504,18 +521,20 @@ def getCLarguments():
         Parameters: none
         Returns: nothing
     """
+    global baudRate
     index = 1
     fileName = ''
     backupOption = ''
 
     # Define a splash to help the user enter command line arguments.
-    usage =  "Usage: %s [-v] [OPTION] [-f file]\n"  \
+    usage =  "Usage: %s [-v] [OPTION] [-f file] [-u baud rate]\n"  \
              "  -b: backup memory\n"                \
              "  -r: restore memory\n"               \
              "  -m: backup menu\n"                  \
              "  -s: restore menu\n"                 \
              "  -f: backup/restore file name\n"     \
              "  -v: verbose mode\n"                 \
+             "  -u: baud rate\n"                    \
              % sys.argv[0].split('/')[-1]
 
     # Process all command line arguments until done.  Note that the last
@@ -541,6 +560,16 @@ def getCLarguments():
             ft991.verbose = True
         elif sys.argv[index] == '-d': # set debug mode 'ON'
             ft991.debug = True
+        elif sys.argv[index] == '-u': # set the baud rate
+            # v12 24 Aug 2022 by J L Owrey; added command line parameter
+            # for setting the CAT baud rate
+            # Get the backup file name.
+            baudRate = sys.argv[index + 1]
+            if not baudRate in ['4800', '9600', '19200', '38400']:
+                print("invalid baud rate")
+                exit(1)
+            baudRate = int(baudRate)
+            index += 1
         else:
             print(usage)
             exit(-1)
@@ -569,7 +598,7 @@ def main():
     else:
         port = _LINUX_COM_PORT
 
-    ft991.begin(port, _FT991_BAUD_RATE) # open com port session to FT991
+    ft991.begin(port, baudRate) # open com port session to FT991
 
     # Process command line options (if any).
     if commandLineOption != '':
