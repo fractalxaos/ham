@@ -1,0 +1,13 @@
+#!/bin/bash
+# Stop the node power agent process and clean up environment.
+
+AGENT_NAME="[n]pwAgent.py"
+
+PROCESS_ID="$(ps x | awk -v a=$AGENT_NAME '$7 ~ a {print $1}')"
+
+if [ -n "$PROCESS_ID" ]; then
+  printf "killing node power agent [%s]\n" $PROCESS_ID
+  kill $PROCESS_ID
+else
+  echo node power agent not running
+fi
