@@ -553,7 +553,7 @@ def main_setup():
     # Log agent process startup time.
     print('===================\n'\
           '%s starting up node power agent process' % \
-                  (getTimeStamp())
+                  (getTimeStamp()))
 
     ## Get command line arguments.
     getCLarguments()
