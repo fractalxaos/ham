@@ -30,9 +30,9 @@
 
 import telnetlib
 
-_DEFAULT_HOST = 'ai7nc-aprs-is-vm.local.mesh'
-_DEFAULT_PORT = '14580'
-_DEFAULT_SERVER = 'AI7NC-30'
+_DEFAULT_HOST = '{your APRS-IS server hostname}'
+_DEFAULT_PORT = '{your APRS-IS message port}'
+_DEFAULT_SERVER = '{your APRS-IS server name}'
 
 class smsalert:
 
